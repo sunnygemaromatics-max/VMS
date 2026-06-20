@@ -1,0 +1,27 @@
+{
+  "name": "enterprise-vms",
+  "version": "1.0.0",
+  "description": "Enterprise Visitor Management System - Monorepo",
+  "private": true,
+  "packageManager": "npm@11.12.1",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "db:migrate": "turbo run db:migrate",
+    "db:push": "turbo run db:push"
+  },
+  "devDependencies": {
+    "turbo": "^2.9.3",
+    "typescript": "^5.4.5"
+  },
+  "engines": {
+    "node": "20.x",
+    "npm": ">=10.0.0"
+  }
+}

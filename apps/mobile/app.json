@@ -1,0 +1,52 @@
+{
+  "expo": {
+    "name": "VMS Mobile",
+    "slug": "vms-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#0f172a"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.vms.mobile",
+      "infoPlist": {
+        "NSCameraUsageDescription": "VMS uses the camera to scan QR codes and capture visitor photos for identity verification at the gate."
+      }
+    },
+    "android": {
+      "package": "com.vms.mobile",
+      "permissions": ["CAMERA", "READ_EXTERNAL_STORAGE", "WRITE_EXTERNAL_STORAGE"]
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "VMS uses the camera to scan QR codes and capture visitor photos at the gate."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#7c3aed"
+        }
+      ]
+    ],
+    "notification": {
+      "iosDisplayInForeground": true,
+      "color": "#7c3aed"
+    },
+    "extra": {
+      "apiUrl": "https://vms-api-production.up.railway.app",
+      "eas": {
+        "projectId": "5c43255e-779b-4f30-a92f-51bb6a92df58"
+      }
+    },
+    "owner": "sam7399"
+  }
+}

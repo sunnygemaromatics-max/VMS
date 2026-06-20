@@ -1,0 +1,54 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+.turbo/
+
+# Env / secrets
+.env
+.env.local
+.env.*.local
+*.pem
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+build.log
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts.bak
+
+# Expo / mobile
+.expo/
+.expo-shared/
+web-build/
+
+# Prisma
+packages/database/prisma/migrations/dev.db*
+
+# Vercel
+.vercel
+
+# Local scratch / IDE state
+_seed.js
+_seed_org2.js
+_check_db.js
+_backfill_worker_qr.js
+.claude/
+.storage/
+Gem-VMS-Handover/

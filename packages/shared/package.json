@@ -1,0 +1,14 @@
+{
+  "name": "@vms/shared",
+  "version": "1.0.0",
+  "description": "Types, schemas, and constants shared between api / web / mobile / kiosk",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p ."
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5"
+  }
+}

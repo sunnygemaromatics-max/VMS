@@ -1,0 +1,910 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ========== ENUMS ==========
+enum Role {
+  SUPER_ADMIN
+  ORG_ADMIN
+  HR_MANAGER
+  SECURITY_HEAD
+  SECURITY_GUARD
+  RECEPTIONIST
+  CONTRACTOR_SUPERVISOR
+  EMPLOYEE
+  SOC_OPERATOR
+  AUDITOR
+}
+
+enum DocumentType {
+  AADHAAR
+  PAN
+  PASSPORT
+  DRIVING_LICENSE
+}
+
+enum VisitStatus {
+  PENDING
+  APPROVED
+  CHECKED_IN
+  CHECKED_OUT
+  REJECTED
+  BLACKLISTED
+}
+
+// ========== MODELS ==========
+
+model Organization {
+  id          String    @id @default(uuid())
+  name        String    @db.VarChar(255)
+  branches    Branch[]
+  contractors Contractor[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([name])
+}
+
+model Branch {
+  id             String    @id @default(uuid())
+  organizationId String
+  name           String    @db.VarChar(255)
+  location       String    @db.VarChar(500)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  users          User[]
+  visits         Visit[]
+  attendance     Attendance[]
+  shifts         Shift[]
+  parkingSlots   ParkingSlot[]
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([organizationId])
+  @@index([name])
+}
+
+model Shift {
+  id          String       @id @default(uuid())
+  branchId    String
+  name        String       @db.VarChar(100)  // "Morning", "Evening", "Night"
+  startTime   String       @db.VarChar(5)    // "06:00"
+  endTime     String       @db.VarChar(5)    // "14:00"
+  isActive    Boolean      @default(true)
+  branch      Branch       @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  assignments WorkerShift[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@unique([branchId, name])
+  @@index([branchId])
+}
+
+model WorkerShift {
+  id        String   @id @default(uuid())
+  workerId  String
+  shiftId   String
+  assignedAt DateTime @default(now())
+
+  worker    Worker  @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  shift     Shift   @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+
+  @@unique([workerId, shiftId])
+  @@index([workerId])
+  @@index([shiftId])
+}
+
+model ParkingSlot {
+  id        String   @id @default(uuid())
+  branchId  String
+  label     String   @db.VarChar(50)   // "A-12"
+  zone      String?  @db.VarChar(50)   // "Visitor", "Staff", "Loading"
+  isActive  Boolean  @default(true)
+  branch    Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  visits    Visit[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([branchId, label])
+  @@index([branchId])
+}
+
+model User {
+  id            String    @id @default(uuid())
+  branchId      String
+  email         String    @unique @db.VarChar(255)
+  passwordHash  String
+  fullName      String    @db.VarChar(255)
+  role          Role
+  phone         String?   @db.VarChar(20)
+  faceData      Bytes?
+  isActive      Boolean   @default(true)
+  totpSecret    String?   @db.VarChar(255)
+  totpEnabled   Boolean   @default(false)
+
+  // ── RBAC extensions (Phase 3) ──────────────────────────────────
+  /// Direct permission grants (additive over role bundle)
+  extraPermissions   Json?
+  /// Negative grants — these override role + extra permissions
+  deniedPermissions  Json?
+  /// Resolved MFA policy snapshot — methods user MUST present
+  requiredMfa        Json?
+
+  // ── Password-rotation hardening ────────────────────────────────
+  passwordChangedAt  DateTime?
+  /// Hashes of the last N passwords (configurable via TenantSecurityPolicy)
+  passwordHistory    Json?
+  failedLoginCount   Int       @default(0)
+  lockedUntil        DateTime?
+
+  // ── Optional per-tenant custom role ────────────────────────────
+  tenantRoleId       String?
+  tenantRole         TenantRole? @relation(fields: [tenantRoleId], references: [id], onDelete: SetNull)
+
+  // ── Approval delegation (Phase 5) ──────────────────────────────
+  approvalDelegateUserId String?
+  delegateUntil          DateTime?
+
+  branch        Branch    @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  visitsHosted  Visit[]   @relation("HostToVisit")
+  resetTokens   PasswordResetToken[]
+  sessions      Session[]
+  trustedDevices TrustedDevice[]
+  mfaBackupCodes MfaBackupCode[]
+  webAuthnCredentials WebAuthnCredential[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([branchId])
+  @@index([email])
+  @@index([role])
+  @@index([tenantRoleId])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique @db.VarChar(128)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+}
+
+model Visitor {
+  id             String    @id @default(uuid())
+  fullName       String    @db.VarChar(255)
+  phone          String    @unique @db.VarChar(20)
+  email          String?   @db.VarChar(255)
+  company        String?   @db.VarChar(255)
+  documentType   DocumentType
+  documentNumber String    @db.VarChar(100)
+  faceData       Bytes?    // raw photo (JPEG)
+  faceEmbedding  Bytes?    // face-api.js Float32Array(128) serialized
+  isBlacklisted  Boolean   @default(false)
+  isVip          Boolean   @default(false)
+  notes          String?   @db.VarChar(1000)
+  visits         Visit[]
+  watchlistEntries WatchlistEntry[]
+  documents      VisitorDocument[]
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([phone])
+  @@index([isBlacklisted])
+  @@index([isVip])
+}
+
+enum PassKind {
+  SINGLE
+  MULTI_ENTRY
+  MULTI_DAY
+  RECURRING
+}
+
+model Visit {
+  id             String      @id @default(uuid())
+  visitorId      String
+  branchId       String
+  hostId         String
+  purpose        String      @db.VarChar(500)
+  status         VisitStatus @default(PENDING)
+  expectedEntry  DateTime
+  actualEntry    DateTime?
+  actualExit     DateTime?
+  vehicleNumber  String?     @db.VarChar(50)
+  qrCodeToken    String      @unique @db.VarChar(500)
+  parkingSlotId  String?
+  groupSize      Int         @default(1)
+  passKind       PassKind    @default(SINGLE)
+  validFrom      DateTime?
+  validUntil     DateTime?
+  maxEntries     Int?
+  entryCount     Int         @default(0)
+  escortRequired Boolean     @default(false)
+  escortUserId   String?     @db.VarChar(100)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  visitor        Visitor     @relation(fields: [visitorId], references: [id], onDelete: Cascade)
+  branch         Branch      @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  host           User        @relation("HostToVisit", fields: [hostId], references: [id], onDelete: Restrict)
+  parkingSlot    ParkingSlot? @relation(fields: [parkingSlotId], references: [id], onDelete: SetNull)
+  materialPasses MaterialGatePass[]
+  feedback       VisitFeedback?
+
+  @@index([visitorId])
+  @@index([branchId])
+  @@index([hostId])
+  @@index([status])
+  @@index([expectedEntry])
+  @@index([parkingSlotId])
+}
+
+model VisitFeedback {
+  id        String   @id @default(uuid())
+  visitId   String   @unique
+  rating    Int      // 1..5
+  comment   String?  @db.VarChar(1000)
+  createdAt DateTime @default(now())
+
+  visit     Visit    @relation(fields: [visitId], references: [id], onDelete: Cascade)
+
+  @@index([rating])
+  @@index([createdAt])
+}
+
+model Notice {
+  id             String    @id @default(uuid())
+  organizationId String?   @db.VarChar(100)  // null = SUPER_ADMIN global
+  branchId       String?   @db.VarChar(100)  // null = whole organization
+  title          String    @db.VarChar(200)
+  body           String    @db.VarChar(2000)
+  level          String    @db.VarChar(20)   @default("info")  // info | warning | urgent
+  authorId       String    @db.VarChar(100)
+  authorName     String    @db.VarChar(200)
+  expiresAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([organizationId])
+  @@index([branchId])
+  @@index([createdAt])
+  @@index([expiresAt])
+}
+
+enum PassDirection {
+  IN
+  OUT
+}
+
+model MaterialGatePass {
+  id            String        @id @default(uuid())
+  visitId       String
+  direction     PassDirection
+  description   String        @db.VarChar(1000)
+  quantity      Int           @default(1)
+  serialNumber  String?       @db.VarChar(200)
+  recordedBy    String?       @db.VarChar(255) // free text — user name / "kiosk" / "guard X"
+  createdAt     DateTime      @default(now())
+
+  visit         Visit         @relation(fields: [visitId], references: [id], onDelete: Cascade)
+
+  @@index([visitId])
+  @@index([direction])
+  @@index([createdAt])
+}
+
+model Contractor {
+  id             String    @id @default(uuid())
+  organizationId String
+  companyName    String    @db.VarChar(255)
+  gstNumber      String    @unique @db.VarChar(50)
+  complianceScore Float    @default(100.0)
+  workers        Worker[]
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([organizationId])
+  @@index([gstNumber])
+}
+
+model Worker {
+  id             String    @id @default(uuid())
+  contractorId   String
+  fullName       String    @db.VarChar(255)
+  phone          String    @db.VarChar(20)
+  documentType   DocumentType
+  documentNumber String    @db.VarChar(100)
+  skillCategory  String    @db.VarChar(100)
+  faceData       Bytes?
+  faceEmbedding  Bytes?    // face-api.js Float32Array(128) serialized
+  medicalExpiry  DateTime
+  policeVerified Boolean   @default(false)
+  isActive       Boolean   @default(true)
+  pfNumber       String?   @db.VarChar(50)
+  esicNumber     String?   @db.VarChar(50)
+  hourlyRate     Float?
+  qrCodeToken    String?   @unique @db.VarChar(500)  // permanent gate-scan token
+  contractor     Contractor @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+  attendance     Attendance[]
+  shifts         WorkerShift[]
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([contractorId])
+  @@index([isActive])
+}
+
+model Attendance {
+  id         String    @id @default(uuid())
+  workerId   String
+  branchId   String
+  checkIn    DateTime  @default(now())
+  checkOut   DateTime?
+  gateId     String    @db.VarChar(100)
+  worker     Worker    @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  branch     Branch    @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@index([workerId])
+  @@index([branchId])
+  @@index([checkIn])
+}
+
+model DeviceToken {
+  id        String   @id @default(uuid())
+  userId    String?  @db.VarChar(100)   // null = anon kiosk
+  token     String   @unique @db.VarChar(255)  // Expo push token
+  platform  String   @db.VarChar(20)    // "ios" | "android" | "web"
+  branchId  String?  @db.VarChar(100)   // for fanout filtering
+  orgId     String?  @db.VarChar(100)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([branchId])
+  @@index([orgId])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  actorId    String?  @db.VarChar(100)   // userId from JWT, or null for anon
+  actorEmail String?  @db.VarChar(255)
+  actorRole  String?  @db.VarChar(50)
+  method     String   @db.VarChar(10)
+  path       String   @db.VarChar(500)
+  status     Int
+  ipAddress  String?  @db.VarChar(64)
+  userAgent  String?  @db.VarChar(500)
+  durationMs Int
+  createdAt  DateTime @default(now())
+
+  @@index([actorId])
+  @@index([createdAt])
+  @@index([path])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Phase 3 — RBAC, sessions, MFA, security audit
+// All additive; existing endpoints keep working unchanged.
+// ─────────────────────────────────────────────────────────────
+
+/// Per-tenant custom role — clone of a built-in Role with editable
+/// permissions and optional branch/hour scope rules.
+model TenantRole {
+  id           String   @id @default(uuid())
+  orgId        String   @db.VarChar(100)
+  slug         String   @db.VarChar(80)
+  name         String   @db.VarChar(120)
+  description  String?  @db.VarChar(500)
+  /// String[] of permission identifiers from packages/shared/rbac
+  permissions  Json
+  /// Optional runtime constraints: { branchIds?: string[], hoursOfDay?: [int,int] }
+  scopeRules   Json?
+  /// Built-in role this was forked from, for "reset to default" UX
+  builtinClone Role?
+  users        User[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([orgId, slug])
+  @@index([orgId])
+}
+
+/// Per-org password / session / MFA policy. Effective = system defaults
+/// overridden by row values. Versioned via updatedAt.
+model TenantSecurityPolicy {
+  orgId                   String   @id @db.VarChar(100)
+  passwordMinLength       Int      @default(12)
+  passwordRequireUpper    Boolean  @default(true)
+  passwordRequireLower    Boolean  @default(true)
+  passwordRequireDigit    Boolean  @default(true)
+  passwordRequireSymbol   Boolean  @default(false)
+  passwordHistoryCount    Int      @default(5)
+  passwordRotateDays      Int      @default(0)
+  sessionMaxMinutes       Int      @default(480)     // 8h
+  sessionIdleMinutes      Int      @default(120)
+  refreshTtlDays          Int      @default(30)
+  /// Override MFA-required role set
+  mfaRequiredRoles        Json?
+  /// Roles that require WebAuthn (platform passkeys) on top of TOTP
+  webauthnRequiredRoles   Json?
+  ipAllowlist             Json?    // string[] CIDR
+  ipDenylist              Json?
+  geoAllowCountries       Json?    // string[] ISO2
+  trustedDeviceTtlDays    Int      @default(30)
+  /// { ROLE: maxConcurrentSessions }
+  concurrentSessionsByRole Json?
+  loginLockoutFails       Int      @default(5)
+  loginLockoutMinutes     Int      @default(15)
+  updatedAt               DateTime @updatedAt
+  updatedBy               String?  @db.VarChar(100)
+}
+
+/// Active sessions. Refresh tokens stored hashed; access tokens stay JWT.
+/// Revocation flips revokedAt — the SessionGuard checks per request.
+model Session {
+  id               String   @id @default(uuid())
+  userId           String
+  orgId            String?  @db.VarChar(100)
+  refreshTokenHash String   @unique @db.VarChar(128)
+  issuedAt         DateTime @default(now())
+  expiresAt        DateTime
+  lastUsedAt       DateTime @default(now())
+  ip               String?  @db.VarChar(64)
+  userAgent        String?  @db.VarChar(500)
+  trustedDeviceId  String?
+  /// 'password' | 'totp' | 'webauthn' | 'backup'
+  mfaMethod        String   @default("password") @db.VarChar(20)
+  mfaVerifiedAt    DateTime?
+  revokedAt        DateTime?
+  /// 'logout' | 'admin_revoke' | 'rotation' | 'policy_violation' | 'expired'
+  revokedReason    String?  @db.VarChar(40)
+
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trustedDevice    TrustedDevice? @relation(fields: [trustedDeviceId], references: [id], onDelete: SetNull)
+
+  @@index([userId, revokedAt])
+  @@index([refreshTokenHash])
+  @@index([expiresAt])
+}
+
+/// Auth-relevant device pinning. Distinct from DeviceToken (push delivery).
+/// One TrustedDevice can produce many Sessions over its trustExpiresAt window.
+model TrustedDevice {
+  id               String   @id @default(uuid())
+  userId           String
+  name             String?  @db.VarChar(120)
+  platform         String?  @db.VarChar(40)
+  fingerprintHash  String   @db.VarChar(128)
+  firstSeenAt      DateTime @default(now())
+  lastSeenAt       DateTime @default(now())
+  lastIp           String?  @db.VarChar(64)
+  trustGrantedAt   DateTime?
+  trustExpiresAt   DateTime?
+  revokedAt        DateTime?
+
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessions         Session[]
+
+  @@unique([userId, fingerprintHash])
+  @@index([userId])
+}
+
+/// One-time recovery codes for users with TOTP enabled. Hashed at rest.
+model MfaBackupCode {
+  id        String   @id @default(uuid())
+  userId    String
+  codeHash  String   @db.VarChar(128)
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, usedAt])
+}
+
+/// Platform passkeys (TouchID, FaceID, Windows Hello) + roaming authenticators.
+model WebAuthnCredential {
+  id              String   @id @default(uuid())
+  userId          String
+  credentialId    Bytes    @unique
+  publicKey       Bytes
+  signCount       BigInt   @default(0)
+  /// JSON string[] of transports e.g. ["internal","hybrid"]
+  transports      Json?
+  deviceName      String?  @db.VarChar(120)
+  createdAt       DateTime @default(now())
+  lastUsedAt      DateTime?
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// Tamper-evident security event log. EventBus subscriber writes here async.
+/// Retention default 13 months; archival via cron job to object storage.
+model SecurityAudit {
+  id              String   @id @default(uuid())
+  ts              DateTime @default(now())
+  actorId         String?  @db.VarChar(100)
+  actorEmail      String?  @db.VarChar(255)
+  orgId           String?  @db.VarChar(100)
+  branchId        String?  @db.VarChar(100)
+  /// e.g. AUTH_LOGIN_SUCCESS, RBAC_ROLE_CHANGE, TENANT_ACCESS_DENIED
+  event           String   @db.VarChar(80)
+  /// 'info' | 'warning' | 'critical'
+  severity        String   @default("info") @db.VarChar(20)
+  context         Json?
+  ip              String?  @db.VarChar(64)
+  userAgent       String?  @db.VarChar(500)
+  fingerprintHash String?  @db.VarChar(128)
+  resourceType    String?  @db.VarChar(80)
+  resourceId      String?  @db.VarChar(100)
+  /// 'allow' | 'deny' | 'challenge'
+  outcome         String   @default("allow") @db.VarChar(20)
+  /// sha256 of the previous row's rowHash + this row's serialized fields
+  /// Used to detect tampering by replaying the chain.
+  prevHash        String?  @db.VarChar(64)
+  rowHash         String?  @db.VarChar(64)
+
+  @@index([orgId, ts])
+  @@index([event, ts])
+  @@index([actorId, ts])
+  @@index([severity])
+}
+
+/// Lower-severity product analytics. Sampled on reads.
+model ActivityLog {
+  id         String   @id @default(uuid())
+  ts         DateTime @default(now())
+  userId     String?  @db.VarChar(100)
+  orgId      String?  @db.VarChar(100)
+  action     String   @db.VarChar(80)
+  path       String?  @db.VarChar(500)
+  durationMs Int?
+  status     Int?
+
+  @@index([userId, ts])
+  @@index([orgId, ts])
+  @@index([action, ts])
+}
+
+/// Login-attempt risk scoring (produced by Phase 4 detectors, schema lives here).
+model LoginRisk {
+  id              String   @id @default(uuid())
+  ts              DateTime @default(now())
+  email           String   @db.VarChar(255)
+  userId          String?  @db.VarChar(100)
+  ip              String?  @db.VarChar(64)
+  fingerprintHash String?  @db.VarChar(128)
+  level           Int      // 0..100
+  /// e.g. ["new_country","impossible_travel"]
+  signals         Json
+  /// 'allow' | 'notify' | 'challenge' | 'deny'
+  action          String   @db.VarChar(20)
+
+  @@index([email, ts])
+  @@index([userId, ts])
+  @@index([level])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Phase 4 — Intelligence: Alerts & Incidents
+// Honest scope: rule-based + statistical signals over the event bus.
+// No fabricated CV. Camera/zone tables land in Phase 5 (surveillance).
+// ─────────────────────────────────────────────────────────────
+
+/// A single atomic signal raised by a detector. Many alerts may roll up
+/// into one Incident via the AlertAggregator.
+model Alert {
+  id          String   @id @default(uuid())
+  /// detector slug, e.g. 'blacklist-face', 'after-hours', 'unauthorized-entry'
+  type        String   @db.VarChar(60)
+  severity    Int      @default(2)   // 1..5
+  orgId       String?  @db.VarChar(100)
+  branchId    String?  @db.VarChar(100)
+  /// 'visitor' | 'worker' | 'user' | 'unknown'
+  actorType   String?  @db.VarChar(20)
+  actorId     String?  @db.VarChar(100)
+  actorName   String?  @db.VarChar(255)
+  /// the events / context that triggered the alert
+  evidence    Json?
+  /// 'open' | 'acknowledged' | 'resolved' | 'dismissed'
+  status      String   @default("open") @db.VarChar(20)
+  raisedAt    DateTime @default(now())
+  ackedAt     DateTime?
+  ackedBy     String?  @db.VarChar(100)
+  resolvedAt  DateTime?
+  incidentId  String?
+
+  incident    Incident? @relation(fields: [incidentId], references: [id], onDelete: SetNull)
+
+  @@index([orgId, raisedAt])
+  @@index([branchId, status])
+  @@index([type])
+  @@index([status])
+  @@index([incidentId])
+}
+
+/// An investigative case grouping correlated alerts.
+model Incident {
+  id            String   @id @default(uuid())
+  orgId         String?  @db.VarChar(100)
+  branchId      String?  @db.VarChar(100)
+  /// max severity of member alerts, 1..5
+  severity      Int      @default(2)
+  /// dominant detector category, e.g. 'access.unauthorized'
+  kind          String   @db.VarChar(60)
+  title         String   @db.VarChar(200)
+  summary       String?  @db.VarChar(2000)
+  /// 'open' | 'investigating' | 'resolved' | 'false_positive'
+  status        String   @default("open") @db.VarChar(20)
+  assignedTo    String?  @db.VarChar(100)
+  resolution    String?  @db.VarChar(2000)
+  resolvedBy    String?  @db.VarChar(100)
+  /// snapshot of headcount / context when opened
+  metricsAtOpen Json?
+  openedAt      DateTime @default(now())
+  closedAt      DateTime?
+  updatedAt     DateTime @updatedAt
+
+  alerts        Alert[]
+  timeline      IncidentTimelineEntry[]
+
+  @@index([orgId, openedAt])
+  @@index([branchId, status])
+  @@index([status])
+  @@index([severity])
+}
+
+/// Append-only investigative trail per incident.
+model IncidentTimelineEntry {
+  id         String   @id @default(uuid())
+  incidentId String
+  ts         DateTime @default(now())
+  /// 'ALERT_ADDED' | 'NOTE' | 'ASSIGN' | 'ACK' | 'ESCALATE' | 'RESOLVE' | 'CLIP_ATTACHED'
+  kind       String   @db.VarChar(40)
+  actorId    String?  @db.VarChar(100)
+  actorName  String?  @db.VarChar(255)
+  payload    Json?
+
+  incident   Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+
+  @@index([incidentId, ts])
+}
+
+/// Per-tenant detector configuration. Defaults live in code; rows override.
+model DetectorConfig {
+  id              String   @id @default(uuid())
+  orgId           String   @db.VarChar(100)
+  /// detector slug
+  slug            String   @db.VarChar(60)
+  enabled         Boolean  @default(true)
+  severityOverride Int?
+  /// detector-specific thresholds, e.g. { windowSec: 10, minCount: 3 }
+  thresholds      Json?
+  /// suppress duplicate alerts for N minutes
+  suppressMinutes Int      @default(5)
+  updatedAt       DateTime @updatedAt
+
+  @@unique([orgId, slug])
+  @@index([orgId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Phase 5 — Visitor Intelligence: Watchlists
+// Generalizes Visitor.isBlacklisted into named, graded lists.
+// isBlacklisted stays as a denormalized cache (kept in sync) so
+// existing code keeps working.
+// ─────────────────────────────────────────────────────────────
+
+model Watchlist {
+  id           String   @id @default(uuid())
+  orgId        String?  @db.VarChar(100)   // null = global (SUPER_ADMIN)
+  name         String   @db.VarChar(120)
+  description  String?  @db.VarChar(500)
+  /// 'block' | 'flag' | 'escort' | 'silent_notify'
+  kind         String   @default("flag") @db.VarChar(20)
+  severity     Int      @default(3)        // 1..5
+  isActive     Boolean  @default(true)
+  entries      WatchlistEntry[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([orgId])
+  @@index([kind])
+}
+
+model WatchlistEntry {
+  id          String    @id @default(uuid())
+  watchlistId String
+  visitorId   String
+  reason      String    @db.VarChar(1000)
+  /// 'manual' | 'imported' | 'detector' | 'partner_feed'
+  source      String    @default("manual") @db.VarChar(20)
+  evidence    Json?
+  addedBy     String?   @db.VarChar(100)
+  addedByName String?   @db.VarChar(255)
+  expiresAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  watchlist   Watchlist @relation(fields: [watchlistId], references: [id], onDelete: Cascade)
+  visitor     Visitor   @relation(fields: [visitorId], references: [id], onDelete: Cascade)
+
+  @@unique([watchlistId, visitorId])
+  @@index([visitorId])
+  @@index([expiresAt])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Phase 5.3 — Document / NDA signing
+// ─────────────────────────────────────────────────────────────
+
+enum DocumentKind {
+  NDA
+  SAFETY_BRIEFING
+  DATA_HANDLING
+  PHOTO_CONSENT
+  HEALTH_SCREENING
+  OTHER
+}
+
+enum DocumentStatus {
+  PENDING
+  SIGNED
+  DECLINED
+  EXPIRED
+}
+
+model DocumentTemplate {
+  id            String        @id @default(uuid())
+  orgId         String?       @db.VarChar(100)   // null = global
+  branchId      String?       @db.VarChar(100)   // null = whole org
+  name          String        @db.VarChar(160)
+  kind          DocumentKind  @default(NDA)
+  bodyMarkdown  String        @db.Text
+  /// Extra fields the signer must fill, e.g. [{name,label,type,required}]
+  requiresFields Json?
+  version       Int           @default(1)
+  isActive      Boolean       @default(true)
+  /// Re-sign required after N days (null = sign once, forever)
+  validityDays  Int?
+  documents     VisitorDocument[]
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([orgId])
+  @@index([kind])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Reporting — saved schedules for automated email delivery.
+// A lightweight in-process scheduler (ReportScheduler) polls nextRunAt
+// and emails the rendered report (CSV attachment + HTML summary).
+// ─────────────────────────────────────────────────────────────
+model ReportSchedule {
+  id           String    @id @default(uuid())
+  orgId        String?   @db.VarChar(100)   // null = SUPER_ADMIN global
+  branchId     String?   @db.VarChar(100)
+  contractorId String?   @db.VarChar(100)
+  createdBy    String?   @db.VarChar(100)
+  name         String    @db.VarChar(160)
+  /// visits | workforce | contractors | branches | users | materials
+  report       String    @db.VarChar(40)
+  groupBy      String?   @db.VarChar(40)
+  /// thisMonth | lastMonth | last7d | last30d | last90d | ytd
+  rangePreset  String    @default("last30d") @db.VarChar(40)
+  /// daily | weekly | monthly
+  frequency    String    @default("monthly") @db.VarChar(20)
+  hourUtc      Int       @default(6)
+  dayOfWeek    Int?      // 0..6 (Sun..Sat) for weekly
+  dayOfMonth   Int?      // 1..28 for monthly
+  /// comma-separated recipient emails
+  recipients   String    @db.VarChar(1000)
+  isActive     Boolean   @default(true)
+  lastRunAt    DateTime?
+  lastStatus   String?   @db.VarChar(300)
+  nextRunAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([isActive, nextRunAt])
+  @@index([orgId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Reporting — user-saved report templates.
+// A template captures the report key, group-by, filters and the
+// selected columns so the user can re-open the exact view with a
+// single click from the right-rail "Saved" list.
+// ─────────────────────────────────────────────────────────────
+model ReportTemplate {
+  id           String   @id @default(uuid())
+  orgId        String?  @db.VarChar(100)
+  createdBy    String   @db.VarChar(100)
+  name         String   @db.VarChar(160)
+  /// visits | workforce | contractors | branches | users | materials | incidents | audit | vehicles | gate-activity
+  report       String   @db.VarChar(40)
+  groupBy      String?  @db.VarChar(40)
+  branchId     String?  @db.VarChar(100)
+  contractorId String?  @db.VarChar(100)
+  rangePreset  String   @default("thisMonth") @db.VarChar(40)
+  /// comma-separated column keys (subset of the report's columns).
+  /// null/empty = all columns
+  columns      String?  @db.VarChar(2000)
+  isFavorite   Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([orgId, createdBy])
+  @@index([report])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Reporting — append-only audit log of every export and email
+// out of the reporting center. Required for SOX / compliance
+// review trails; viewer lives in /reports right rail.
+// ─────────────────────────────────────────────────────────────
+model ReportExport {
+  id          String   @id @default(uuid())
+  orgId       String?  @db.VarChar(100)
+  actorId     String?  @db.VarChar(100)
+  actorEmail  String?  @db.VarChar(255)
+  report      String   @db.VarChar(40)
+  /// xlsx | csv | pdf | json | xml | print | email
+  format      String   @db.VarChar(20)
+  /// current | full | summary | email
+  scope       String   @db.VarChar(20)
+  rowCount    Int      @default(0)
+  /// Serialized filter snapshot (from, to, groupBy, branchId etc.)
+  filters     Json?
+  /// For email exports: comma-separated recipients
+  recipients  String?  @db.VarChar(1000)
+  createdAt   DateTime @default(now())
+
+  @@index([orgId, createdAt])
+  @@index([actorId])
+  @@index([report])
+}
+
+model VisitorDocument {
+  id              String         @id @default(uuid())
+  visitorId       String
+  visitId         String?        @db.VarChar(100)
+  templateId      String
+  templateVersion Int
+  status          DocumentStatus @default(PENDING)
+  /// opaque token for the public /sign/:token link
+  signToken       String         @unique @db.VarChar(128)
+  sentAt          DateTime       @default(now())
+  signedAt        DateTime?
+  declinedAt      DateTime?
+  expiresAt       DateTime?
+  /// signature as an SVG / PNG data URL
+  signatureData   String?        @db.Text
+  filledFields    Json?
+  ipAddress       String?        @db.VarChar(64)
+  userAgent       String?        @db.VarChar(500)
+  /// object-storage key for the generated immutable PDF
+  pdfStorageKey   String?        @db.VarChar(500)
+  /// sha256 of canonical content — tamper evidence
+  hash            String?        @db.VarChar(64)
+  createdAt       DateTime       @default(now())
+
+  visitor         Visitor          @relation(fields: [visitorId], references: [id], onDelete: Cascade)
+  template        DocumentTemplate @relation(fields: [templateId], references: [id], onDelete: Restrict)
+
+  @@index([visitorId])
+  @@index([status])
+  @@index([signToken])
+}

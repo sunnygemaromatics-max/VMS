@@ -1,0 +1,86 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: vms_db
+    environment:
+      POSTGRES_USER: enterprise_user
+      POSTGRES_PASSWORD: secure_password
+      POSTGRES_DB: vms_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - vms_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U enterprise_user -d vms_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache & Real-Time
+  redis:
+    image: redis:7-alpine
+    container_name: vms_redis
+    ports:
+      - "6379:6379"
+    networks:
+      - vms_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # API Service (NestJS)
+  api:
+    build:
+      context: .
+      dockerfile: ./apps/api/Dockerfile
+    container_name: vms_api
+    environment:
+      - DATABASE_URL=postgresql://enterprise_user:secure_password@db:5432/vms_db
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=your_jwt_secret_key
+      - NODE_ENV=development
+      - API_PORT=4000
+    ports:
+      - "4000:4000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - vms_network
+    volumes:
+      - ./apps/api:/app/api
+    command: npm run dev
+
+  # Web Dashboard (Next.js)
+  web:
+    build:
+      context: .
+      dockerfile: ./apps/web/Dockerfile
+    container_name: vms_web
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:4000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    networks:
+      - vms_network
+    volumes:
+      - ./apps/web:/app/web
+    command: npm run dev
+
+networks:
+  vms_network:
+    driver: bridge
+
+volumes:
+  pgdata:

@@ -1,0 +1,7 @@
+{
+  "name": "@vms/config",
+  "version": "1.0.0",
+  "description": "Shared configuration for the monorepo",
+  "private": true,
+  "files": ["eslint.js", "tailwind.config.js", "tsconfig.base.json"]
+}

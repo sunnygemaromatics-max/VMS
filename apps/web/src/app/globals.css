@@ -1,0 +1,281 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ──────────────────────────────────────────────────────────────
+ * Theme variables. Mirrors packages/ui/src/tokens/themes/*.ts
+ * Kept in sync manually — Next.js can't import the TS at CSS build.
+ * Validated by the design system's tokens/themes/index.ts (themeCss()).
+ * ────────────────────────────────────────────────────────────── */
+
+:root,
+[data-theme='dark'] {
+  /* surfaces — graphite */
+  --surface-0: #060814;
+  --surface-1: #0B0F1F;
+  --surface-2: #11162A;
+  --surface-3: #171D34;
+  --surface-4: #1F2641;
+  --border-subtle: #1F2641;
+  --border-strong: #2A3158;
+  --text-primary: #F3F5FA;
+  --text-secondary: #9AA3B8;
+  --text-tertiary: #5A6480;
+  --text-disabled: #3B4263;
+  --text-on-accent: #FFFFFF;
+
+  /* density (compact default per design spec C3) */
+  --density-row-height: 32px;
+  --density-font-size: 13px;
+  --density-input-height: 32px;
+
+  /* legacy hsl variables — back-compat for existing styles */
+  --background: 234deg 37% 7%;
+  --foreground: 210deg 20% 96%;
+  --radius: 12px;
+}
+
+[data-theme='light'] {
+  --surface-0: #FAFBFD;
+  --surface-1: #FFFFFF;
+  --surface-2: #F4F6FA;
+  --surface-3: #E9EDF4;
+  --surface-4: #DBE1EC;
+  --border-subtle: #E1E5EE;
+  --border-strong: #B7BFCF;
+  --text-primary: #0B0F1F;
+  --text-secondary: #3B4263;
+  --text-tertiary: #5A6480;
+  --text-disabled: #9AA3B8;
+  --text-on-accent: #FFFFFF;
+  --density-row-height: 36px;
+  --density-font-size: 14px;
+  --density-input-height: 36px;
+}
+
+[data-density='default'] {
+  --density-row-height: 40px;
+  --density-font-size: 13px;
+  --density-input-height: 36px;
+}
+
+[data-density='comfort'] {
+  --density-row-height: 48px;
+  --density-font-size: 14px;
+  --density-input-height: 40px;
+}
+
+body {
+  background-color: var(--surface-0);
+  color: var(--text-primary);
+  font-feature-settings: 'cv11', 'ss01';
+  font-variant-numeric: tabular-nums slashed-zero;
+}
+
+html,
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-family: 'InterVariable', 'Inter', -apple-system, BlinkMacSystemFont,
+    'Segoe UI', Roboto, sans-serif;
+}
+
+/* ──────────────────────────────────────────────────────────────
+ * Light-theme remaps for utility classes that were authored
+ * dark-first. Tailwind doesn't theme `bg-white/N` or `text-zinc-N`
+ * by itself, so we override them under [data-theme='light'].
+ *
+ * `text-white` stays white whenever it sits on a colored button /
+ * gradient surface (the second block restores it via higher
+ * specificity); on a glass panel it becomes text-primary so it
+ * stays readable.
+ * ────────────────────────────────────────────────────────────── */
+[data-theme='light'] .bg-white\/5,
+[data-theme='light'] .bg-white\/\[0\.04\],
+[data-theme='light'] .bg-white\/\[0\.05\] {
+  background-color: rgb(15 23 42 / 0.04);
+}
+[data-theme='light'] .bg-white\/\[0\.06\] {
+  background-color: rgb(15 23 42 / 0.05);
+}
+[data-theme='light'] .bg-white\/10 {
+  background-color: rgb(15 23 42 / 0.06);
+}
+[data-theme='light'] .bg-white\/20 {
+  background-color: rgb(15 23 42 / 0.10);
+}
+[data-theme='light'] .hover\:bg-white\/10:hover,
+[data-theme='light'] .hover\:bg-white\/\[0\.06\]:hover {
+  background-color: rgb(15 23 42 / 0.06);
+}
+[data-theme='light'] .hover\:bg-white\/20:hover {
+  background-color: rgb(15 23 42 / 0.10);
+}
+
+[data-theme='light'] .border-white\/5 {
+  border-color: rgb(15 23 42 / 0.06);
+}
+[data-theme='light'] .border-white\/10 {
+  border-color: rgb(15 23 42 / 0.10);
+}
+[data-theme='light'] .border-white\/20 {
+  border-color: rgb(15 23 42 / 0.18);
+}
+[data-theme='light'] .divide-white\/5 > :not([hidden]) ~ :not([hidden]) {
+  border-color: rgb(15 23 42 / 0.06);
+}
+[data-theme='light'] .divide-white\/10 > :not([hidden]) ~ :not([hidden]) {
+  border-color: rgb(15 23 42 / 0.10);
+}
+
+/* Zinc texts → readable dark shades */
+[data-theme='light'] .text-zinc-300 { color: #3B4263; }
+[data-theme='light'] .text-zinc-400 { color: #4B5377; }
+[data-theme='light'] .text-zinc-500 { color: #5A6480; }
+[data-theme='light'] .text-zinc-600 { color: #7A8299; }
+[data-theme='light'] .text-zinc-700 { color: #9AA3B8; }
+[data-theme='light'] .hover\:text-white:hover { color: #0B0F1F; }
+
+/* text-white inside surface panels → dark; the next block puts it
+   back to white whenever it sits on a colored / gradient button. */
+[data-theme='light'] .text-white {
+  color: var(--text-primary);
+}
+[data-theme='light'] [class*="bg-brand-gradient"].text-white,
+[data-theme='light'] [class*="bg-brand-gradient"] .text-white,
+[data-theme='light'] [class*="bg-brand-5"].text-white,
+[data-theme='light'] [class*="bg-brand-6"].text-white,
+[data-theme='light'] [class*="bg-brand-7"].text-white,
+[data-theme='light'] [class*="bg-blue-6"].text-white,
+[data-theme='light'] [class*="bg-blue-7"].text-white,
+[data-theme='light'] [class*="bg-purple-6"].text-white,
+[data-theme='light'] [class*="bg-purple-7"].text-white,
+[data-theme='light'] [class*="bg-violet-6"].text-white,
+[data-theme='light'] [class*="bg-violet-7"].text-white,
+[data-theme='light'] [class*="bg-red-5"].text-white,
+[data-theme='light'] [class*="bg-red-6"].text-white,
+[data-theme='light'] [class*="bg-red-7"].text-white,
+[data-theme='light'] [class*="bg-rose-5"].text-white,
+[data-theme='light'] [class*="bg-rose-6"].text-white,
+[data-theme='light'] [class*="bg-rose-7"].text-white,
+[data-theme='light'] [class*="bg-emerald-5"].text-white,
+[data-theme='light'] [class*="bg-emerald-6"].text-white,
+[data-theme='light'] [class*="bg-emerald-7"].text-white,
+[data-theme='light'] [class*="bg-green-5"].text-white,
+[data-theme='light'] [class*="bg-green-6"].text-white,
+[data-theme='light'] [class*="bg-green-7"].text-white,
+[data-theme='light'] [class*="bg-amber-5"].text-white,
+[data-theme='light'] [class*="bg-amber-6"].text-white,
+[data-theme='light'] [class*="bg-orange-5"].text-white,
+[data-theme='light'] [class*="bg-orange-6"].text-white,
+[data-theme='light'] [class*="bg-fuchsia-"].text-white,
+[data-theme='light'] [class*="bg-pink-6"].text-white,
+[data-theme='light'] [class*="bg-pink-7"].text-white,
+[data-theme='light'] [class*="bg-indigo-6"].text-white,
+[data-theme='light'] [class*="bg-indigo-7"].text-white,
+[data-theme='light'] [class*="bg-cyan-6"].text-white,
+[data-theme='light'] [class*="bg-cyan-7"].text-white,
+[data-theme='light'] [class*="bg-sky-6"].text-white,
+[data-theme='light'] [class*="bg-sky-7"].text-white,
+[data-theme='light'] [class*="bg-slate-7"].text-white,
+[data-theme='light'] [class*="bg-slate-8"].text-white,
+[data-theme='light'] [class*="bg-slate-9"].text-white,
+[data-theme='light'] [class*="bg-zinc-7"].text-white,
+[data-theme='light'] [class*="bg-zinc-8"].text-white,
+[data-theme='light'] [class*="bg-zinc-9"].text-white,
+[data-theme='light'] [class*="bg-neutral-7"].text-white,
+[data-theme='light'] [class*="bg-neutral-8"].text-white,
+[data-theme='light'] [class*="bg-neutral-9"].text-white,
+[data-theme='light'] [class*="bg-black"].text-white,
+[data-theme='light'] [class*="bg-success"].text-white,
+[data-theme='light'] [class*="bg-danger"].text-white,
+[data-theme='light'] [class*="bg-warning"].text-white,
+[data-theme='light'] [class*="bg-info"].text-white {
+  color: #ffffff;
+}
+
+/* Slate backgrounds that were chosen specifically to match dark theme.
+   Remap to surface tokens so dropdown <option>s, tooltips, etc. stay
+   readable. */
+[data-theme='light'] .bg-slate-900,
+[data-theme='light'] .bg-slate-900\/60,
+[data-theme='light'] .bg-slate-900\/80,
+[data-theme='light'] .bg-slate-900\/85,
+[data-theme='light'] .bg-slate-900\/90,
+[data-theme='light'] .bg-slate-900\/95 {
+  background-color: var(--surface-1);
+  color: var(--text-primary);
+}
+[data-theme='light'] .bg-black\/20,
+[data-theme='light'] .bg-black\/30,
+[data-theme='light'] .bg-black\/40 {
+  background-color: rgb(15 23 42 / 0.04);
+}
+
+/* Placeholders also need theme-aware shades */
+[data-theme='light'] .placeholder-zinc-400::placeholder { color: #7A8299; }
+[data-theme='light'] .placeholder-zinc-500::placeholder { color: #9AA3B8; }
+[data-theme='light'] .placeholder-zinc-600::placeholder { color: #B7BFCF; }
+
+/* Inputs typed as dark-themed (`[color-scheme:dark]`) → use auto so the
+   browser-rendered date/time picker chrome matches light mode. */
+[data-theme='light'] [class*="color-scheme:dark"],
+[data-theme='light'] .\[color-scheme\:dark\] {
+  color-scheme: light;
+}
+
+/* Backdrop-blur panels were tuned for dark backdrop. In light mode
+   the blur creates a milky look; reduce it. */
+[data-theme='light'] .backdrop-blur-xl,
+[data-theme='light'] .backdrop-blur-lg {
+  backdrop-filter: blur(8px);
+}
+
+/* Red/amber alerts: their tinted backgrounds (bg-red-500/10 etc) stay
+   fine, but the colored text on a white page needs slightly stronger
+   shades for AA contrast. */
+[data-theme='light'] .text-red-200,
+[data-theme='light'] .text-red-300 { color: #B91C1C; }
+[data-theme='light'] .text-emerald-200,
+[data-theme='light'] .text-emerald-300 { color: #047857; }
+[data-theme='light'] .text-yellow-300,
+[data-theme='light'] .text-amber-300 { color: #B45309; }
+[data-theme='light'] .text-purple-300 { color: #6D28D9; }
+
+/* Custom scrollbar — operator-friendly, subtle */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3B4263;
+  background-clip: padding-box;
+  border: 2px solid transparent;
+}
+
+/* Reduced-motion respects */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Focus ring — accessible without being heavy */
+:focus-visible {
+  outline: 2px solid #7C3AED;
+  outline-offset: 2px;
+  border-radius: 4px;
+}

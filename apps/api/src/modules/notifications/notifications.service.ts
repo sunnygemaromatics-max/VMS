@@ -236,7 +236,7 @@ export class NotificationsService implements OnModuleInit {
         <p style="margin:24px 0"><a href="${args.passUrl}" style="display:inline-block;background:#3b82f6;color:#fff;padding:12px 18px;border-radius:8px;text-decoration:none">Open visitor pass</a></p>
         <p style="font-size:12px;color:#94a3b8">If the button doesn't work, copy this link: ${args.passUrl}</p>
         <hr style="border:none;border-top:1px solid #1e293b;margin:24px 0"/>
-        <p style="font-size:11px;color:#64748b">The Studio Infinito &middot; a Personify Crafters company</p>
+        <p style="font-size:11px;color:#64748b">Gem Aromatics Group</p>
       </div>`;
     return this.send({
       to: args.to,

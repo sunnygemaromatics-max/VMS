@@ -126,7 +126,7 @@ export function printReport(
   } else {
     win.document.write('<p>No rows to display.</p>');
   }
-  win.document.write(`<footer>The Studio Infinito · a Personify Crafters company · Generated ${new Date().toLocaleString()}</footer>`);
+  win.document.write(`<footer>Gem Aromatics Group · Generated ${new Date().toLocaleString()}</footer>`);
   win.document.write('</body></html>');
   win.document.close();
   win.focus();

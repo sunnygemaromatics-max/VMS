@@ -40,7 +40,7 @@ const EN: Record<string, string> = {
 
   // Top-bar
   'topbar.lang': 'Language',
-  'topbar.subtitle': 'TSI · Visitor & Workforce Management',
+  'topbar.subtitle': 'Gem Aromatics · Visitor & Workforce Management',
 
   // Status labels
   'status.PENDING': 'Pending',
@@ -362,7 +362,7 @@ const EN: Record<string, string> = {
   'about.checking': 'Checking…',
   'about.stack': 'Stack',
   'about.quickLinks': 'Quick links',
-  'about.builtBy': 'Built by Personify Crafters for The Studio Infinito',
+  'about.builtBy': 'Built for Gem Aromatics Group',
 
   // Help
   'help.title': 'How VMS works',
@@ -698,7 +698,7 @@ const HI: Record<string, string> = {
   'about.checking': 'जाँच रहे हैं…',
   'about.stack': 'स्टैक',
   'about.quickLinks': 'त्वरित लिंक',
-  'about.builtBy': 'पर्सोनिफाई क्राफ्टर्स द्वारा द स्टूडियो इन्फिनिटो के लिए निर्मित',
+  'about.builtBy': 'जेम अरोमैटिक्स ग्रुप के लिए निर्मित',
 
   'help.title': 'VMS कैसे काम करता है',
   'help.subtitle': 'प्लेटफ़ॉर्म की हर सुविधा का त्वरित दौरा।',

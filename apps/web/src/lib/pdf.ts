@@ -81,7 +81,7 @@ export function downloadPDF(
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(...MUTED);
-  doc.text('The Studio Infinito · a Personify Crafters company', pageW - M, M + 18, { align: 'right' });
+  doc.text('Gem Aromatics Group', pageW - M, M + 18, { align: 'right' });
 
   let cursorY = M + 38;
 

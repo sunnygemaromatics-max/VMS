@@ -12,9 +12,9 @@ import { ThemeProvider, THEME_BOOTSTRAP_SCRIPT } from "@/lib/theme-context";
 const brand = getBrand();
 
 export const metadata: Metadata = {
-  title: brand.productName + " | Built by Personify Crafters",
+  title: brand.productName + " | Gem Aromatics Group",
   description: brand.description,
-  authors: [{ name: "Personify Crafters" }],
+  authors: [{ name: "Gem Aromatics Group" }],
   openGraph: {
     title: brand.ogTitle,
     description: brand.description,

@@ -198,7 +198,7 @@ export class AuthService {
     await this.prisma.user.update({ where: { id: userId }, data: { totpSecret: secret } });
     return {
       secret,
-      otpauthUrl: totpUri(user.email, 'TSI VMS', secret),
+      otpauthUrl: totpUri(user.email, 'Gem Aromatics VMS', secret),
     };
   }
 

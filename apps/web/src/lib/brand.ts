@@ -1,7 +1,7 @@
 /**
  * Brand resolution. Same codebase serves two products today:
- *   - VMS    (vms.thestudioinfinito.com)         — legacy, default
- *   - AEGIS  (intel.thestudioinfinito.com)       — new positioning
+ *   - VMS    (vms.gemaromatics.com)              — visitor management
+ *   - AEGIS  (aegis.gemaromatics.com)            — security intelligence
  *
  * Switched at build time by NEXT_PUBLIC_BRAND_CODE. Add a brand by
  * extending the BRANDS map — no other code change needed.
@@ -31,10 +31,10 @@ const VMS_BRAND: BrandConfig = {
   code: 'vms',
   shortName: 'VMS',
   productName: 'VMS — Visitor Management System',
-  tagline: 'The Studio Infinito',
+  tagline: 'Gem Aromatics Group',
   description:
-    'Enterprise Visitor & Workforce Management — built by Personify Crafters for The Studio Infinito.',
-  ogTitle: 'VMS — Visitor Management System | TSI',
+    'Enterprise Visitor & Workforce Management for Gem Aromatics Group.',
+  ogTitle: 'VMS — Visitor Management System | Gem Aromatics',
   logoSrc: '/logo.png',
   faviconSrc: '/favicon.png',
 };
@@ -43,9 +43,9 @@ const AEGIS_BRAND: BrandConfig = {
   code: 'aegis',
   shortName: 'AEGIS',
   productName: 'AEGIS — AI Security & Visitor Intelligence',
-  tagline: 'by The Studio Infinito',
+  tagline: 'Gem Aromatics Group',
   description:
-    'AI Security Monitoring & Visitor Intelligence Platform — built by Personify Crafters for The Studio Infinito.',
+    'AI Security Monitoring & Visitor Intelligence Platform for Gem Aromatics Group.',
   ogTitle: 'AEGIS — AI Security & Visitor Intelligence',
   logoSrc: '/logo.png',
   faviconSrc: '/favicon.png',

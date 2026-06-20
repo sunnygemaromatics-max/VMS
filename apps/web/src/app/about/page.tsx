@@ -34,7 +34,7 @@ export default function AboutPage() {
           <div>
             <h2 className="text-3xl font-bold text-white">VMS</h2>
             <p className="text-zinc-400">
-              The Studio Infinito · Visitor &amp; Workforce Management
+              Gem Aromatics Group · Visitor &amp; Workforce Management
             </p>
           </div>
         </div>
@@ -59,16 +59,7 @@ export default function AboutPage() {
             reports.
           </p>
           <p className="text-zinc-300 text-sm leading-relaxed mt-3">
-            Built by{' '}
-            <a
-              href="https://thestudioinfinito.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-brand-400 hover:text-brand-300"
-            >
-              Personify Crafters for The Studio Infinito
-            </a>
-            .
+            Built for Gem Aromatics Group.
           </p>
         </Section>
 

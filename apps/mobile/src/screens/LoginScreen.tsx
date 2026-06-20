@@ -62,7 +62,7 @@ export function LoginScreen({ onLoggedIn, onContinueAsGate }: Props) {
         </View>
 
         <Text style={styles.title}>VMS</Text>
-        <Text style={styles.subtitle}>The Studio Infinito · {t("auth.signIn")}</Text>
+        <Text style={styles.subtitle}>Gem Aromatics · {t("auth.signIn")}</Text>
 
         <View style={styles.card}>
           <Text style={styles.label}>{t("auth.email")}</Text>

@@ -33,7 +33,7 @@ export async function downloadBadgePDF(badge: BadgeData) {
   doc.text('VISITOR PASS', 52.5, 11, { align: 'center' });
   doc.setFontSize(8);
   doc.setTextColor(180);
-  doc.text('The Studio Infinito · vms.thestudioinfinito.com', 52.5, 17, { align: 'center' });
+  doc.text('Gem Aromatics Group · vms.gemaromatics.com', 52.5, 17, { align: 'center' });
 
   // QR
   doc.addImage(qrPng, 'PNG', 30, 28, 45, 45);

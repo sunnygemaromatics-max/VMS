@@ -13,7 +13,7 @@ interface Props {
 
 export function Logo({ size = 36, showWordmark = true, href = '/', className = '' }: Props) {
   const brand = getBrand();
-  const imageWidth = showWordmark ? Math.round(size * 4.4) : Math.round(size * 1.5);
+  const imageWidth = showWordmark ? Math.round(size * 3.3) : Math.round(size * 1.25);
   const inner = (
     <span className={`inline-flex items-center gap-2.5 ${className}`}>
       <Image

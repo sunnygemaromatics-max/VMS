@@ -5,14 +5,16 @@ import { useRouter } from 'next/navigation';
 import {
   BarChart3,
   Building2,
-  CalendarRange,
   Download,
+  Eye,
   FileSpreadsheet,
   FileText,
   Filter,
   HardHat,
+  Search,
   RefreshCw,
   ShieldAlert,
+  SlidersHorizontal,
   Users,
 } from 'lucide-react';
 import { DashboardHeader } from '@/components/dashboard-header';
@@ -53,6 +55,7 @@ type ReportDefinition = {
   defaultSortKey?: string;
   defaultSortDir?: 'asc' | 'desc';
   detail: string;
+  detailEnabled?: boolean;
 };
 
 const TIME_GROUPS: GroupOption[] = [
@@ -82,6 +85,7 @@ const REPORTS: ReportDefinition[] = [
     defaultSortKey: 'group',
     defaultSortDir: 'asc',
     detail: 'Best for daily visitor movement, approvals and host activity.',
+    detailEnabled: true,
   },
   {
     key: 'gate-activity',
@@ -138,6 +142,7 @@ const REPORTS: ReportDefinition[] = [
     defaultSortKey: 'group',
     defaultSortDir: 'asc',
     detail: 'Helpful for stores, dispatch and material gate records.',
+    detailEnabled: true,
   },
   {
     key: 'workforce',
@@ -159,6 +164,7 @@ const REPORTS: ReportDefinition[] = [
     defaultSortKey: 'totalHours',
     defaultSortDir: 'desc',
     detail: 'Best for contractor billing, worker utilization and overtime review.',
+    detailEnabled: true,
   },
   {
     key: 'contractors',
@@ -171,6 +177,7 @@ const REPORTS: ReportDefinition[] = [
     defaultSortKey: 'contractor',
     defaultSortDir: 'asc',
     detail: 'This is the simplest contractor-wise export for client sharing.',
+    detailEnabled: true,
   },
   {
     key: 'users',
@@ -183,6 +190,7 @@ const REPORTS: ReportDefinition[] = [
     defaultSortKey: 'host',
     defaultSortDir: 'asc',
     detail: 'Useful for host productivity and response tracking.',
+    detailEnabled: true,
   },
   {
     key: 'incidents',
@@ -233,6 +241,7 @@ const REPORTS: ReportDefinition[] = [
     defaultSortKey: 'branch',
     defaultSortDir: 'asc',
     detail: 'Best for comparing sites and preparing management summaries.',
+    detailEnabled: true,
   },
 ];
 
@@ -284,6 +293,23 @@ function inferSortKey(rows: Record<string, unknown>[], report: ReportDefinition)
   return Object.keys(first)[0] ?? '';
 }
 
+function getDetailValue(report: ReportDefinition, row: Record<string, unknown>) {
+  const candidates =
+    report.key === 'contractors'
+      ? ['contractor', 'group']
+      : report.key === 'users'
+        ? ['host', 'group']
+        : report.key === 'branches'
+          ? ['branch', 'group']
+          : ['group', 'contractor', 'host', 'branch', 'worker', 'direction', 'status'];
+
+  for (const key of candidates) {
+    const value = row[key];
+    if (value !== null && value !== undefined && value !== '') return String(value);
+  }
+  return '';
+}
+
 export default function ReportsPage() {
   const { isAuthenticated, isLoading, user } = useAuth();
   const router = useRouter();
@@ -303,9 +329,14 @@ export default function ReportsPage() {
   const [error, setError] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState('');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [groupBy, setGroupBy] = useState(REPORT_BY_KEY.contractors.defaultGroupBy || '');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [visibleColumns, setVisibleColumns] = useState<string[]>([]);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const [detailData, setDetailData] = useState<{ value: string; count: number; rows: Record<string, unknown>[] } | null>(null);
 
   const activeReport = REPORT_BY_KEY[activeReportKey];
-  const groupBy = activeReport.defaultGroupBy || '';
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) router.push('/auth/login');
@@ -320,6 +351,10 @@ export default function ReportsPage() {
   useEffect(() => {
     setSortKey('');
     setSortDir(activeReport.defaultSortDir || 'asc');
+    setGroupBy(activeReport.defaultGroupBy || activeReport.groupByOptions?.[0]?.value || '');
+    setSearchTerm('');
+    setDetailData(null);
+    setDetailError(null);
   }, [activeReport]);
 
   async function loadReports() {
@@ -353,11 +388,15 @@ export default function ReportsPage() {
   useEffect(() => {
     if (isAuthenticated) loadReports();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, activeReportKey, from, to, branchId, contractorId]);
+  }, [isAuthenticated, activeReportKey, from, to, branchId, contractorId, groupBy]);
 
   const rows = useMemo<Record<string, unknown>[]>(() => reportData?.rows ?? [], [reportData]);
   const columns = useMemo(() => (rows[0] ? Object.keys(rows[0]) : []), [rows]);
   const effectiveSortKey = sortKey || inferSortKey(rows, activeReport);
+
+  useEffect(() => {
+    setVisibleColumns(columns);
+  }, [columns]);
 
   const sortedRows = useMemo(() => {
     if (!effectiveSortKey) return rows;
@@ -376,6 +415,19 @@ export default function ReportsPage() {
         : bText.localeCompare(aText, undefined, { numeric: true, sensitivity: 'base' });
     });
   }, [effectiveSortKey, rows, sortDir]);
+
+  const filteredRows = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
+    if (!query) return sortedRows;
+    return sortedRows.filter((row) =>
+      Object.values(row).some((value) => String(value ?? '').toLowerCase().includes(query)),
+    );
+  }, [searchTerm, sortedRows]);
+
+  const tableColumns = useMemo(
+    () => columns.filter((column) => visibleColumns.includes(column)),
+    [columns, visibleColumns],
+  );
 
   const summaryCards = useMemo(() => {
     const totals = reportData?.totals ?? {};
@@ -403,15 +455,50 @@ export default function ReportsPage() {
     }
   }
 
+  function toggleColumn(column: string) {
+    setVisibleColumns((current) =>
+      current.includes(column) ? current.filter((item) => item !== column) : [...current, column],
+    );
+  }
+
+  async function loadDetail(row: Record<string, unknown>) {
+    const value = getDetailValue(activeReport, row);
+    if (!value) return;
+    setDetailLoading(true);
+    setDetailError(null);
+    try {
+      const detail = await apiGet<any>(
+        `/reports/${activeReport.key}/detail${buildQuery({
+          from,
+          to,
+          branchId: activeReport.useBranch ? branchId : undefined,
+          contractorId: activeReport.useContractor ? contractorId : undefined,
+          groupBy: activeReport.groupByOptions?.length ? groupBy : undefined,
+          value,
+        })}`,
+      );
+      setDetailData({
+        value,
+        count: detail?.count ?? 0,
+        rows: detail?.rows ?? [],
+      });
+    } catch (err) {
+      setDetailData(null);
+      setDetailError(err instanceof Error ? err.message : 'Failed to load detailed rows');
+    } finally {
+      setDetailLoading(false);
+    }
+  }
+
   function exportRows(format: 'csv' | 'xlsx' | 'pdf') {
-    if (!sortedRows.length) return;
+    if (!filteredRows.length) return;
     const filename = `gem-${activeReport.key}-${from}_${to}`;
     if (format === 'csv') {
-      downloadCSV(`${filename}.csv`, sortedRows as Record<string, any>[]);
+      downloadCSV(`${filename}.csv`, filteredRows as Record<string, any>[]);
       return;
     }
     if (format === 'xlsx') {
-      downloadXLSX(`${filename}.xlsx`, [{ name: activeReport.title, rows: sortedRows as Record<string, any>[] }]);
+      downloadXLSX(`${filename}.xlsx`, [{ name: activeReport.title, rows: filteredRows as Record<string, any>[] }]);
       return;
     }
     downloadPDF(
@@ -421,16 +508,18 @@ export default function ReportsPage() {
         subtitle: activeReport.description,
         filters: [
           { label: 'Range', value: `${from} → ${to}` },
+          ...(groupBy ? [{ label: 'Grouped by', value: activeReport.groupByOptions?.find((item) => item.value === groupBy)?.label ?? groupBy }] : []),
           ...(branchId ? [{ label: 'Branch', value: branches.find((item) => item.id === branchId)?.name ?? branchId }] : []),
           ...(contractorId
             ? [{ label: 'Contractor', value: contractors.find((item) => item.id === contractorId)?.companyName ?? contractorId }]
             : []),
+          ...(searchTerm.trim() ? [{ label: 'Search', value: searchTerm.trim() }] : []),
         ],
         kpis: summaryCards,
         generatedBy: user?.fullName || user?.email,
         brand: 'Gem Aromatics',
       },
-      sortedRows as Record<string, any>[],
+      filteredRows as Record<string, any>[],
     );
   }
 
@@ -455,9 +544,8 @@ export default function ReportsPage() {
               </div>
               <h1 className="text-2xl font-semibold text-text-primary">Simple, export-ready reporting</h1>
               <p className="text-sm text-text-secondary mt-2 max-w-3xl">
-                This screen is intentionally simpler than the previous workbench. Pick a report,
-                apply filters, review the table, and download the exact view as CSV, Excel, or PDF.
-                The older complex reports page is preserved in
+                Pick a report, slice it by site, contractor, user, time, or status, inspect the table,
+                then download the exact filtered view as CSV, Excel, or PDF. The older reports page is preserved in
                 {' '}<code>ReportsWorkbenchBackup.tsx</code>{' '}as a fallback.
               </p>
             </div>
@@ -495,7 +583,7 @@ export default function ReportsPage() {
             ))}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-3">
             <label className="flex flex-col gap-1.5">
               <span className="text-xs text-text-tertiary">From</span>
               <input
@@ -548,6 +636,22 @@ export default function ReportsPage() {
                 {contractors.map((contractor) => (
                   <option key={contractor.id} value={contractor.id}>
                     {contractor.companyName}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs text-text-tertiary">Group by</span>
+              <select
+                value={groupBy}
+                onChange={(event) => setGroupBy(event.target.value)}
+                disabled={!activeReport.groupByOptions?.length}
+                className="bg-surface-2 border border-border-subtle rounded-lg px-3 py-2 text-sm text-text-primary disabled:opacity-40"
+              >
+                {!activeReport.groupByOptions?.length ? <option value="">No grouping options</option> : null}
+                {activeReport.groupByOptions?.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
                   </option>
                 ))}
               </select>
@@ -615,16 +719,26 @@ export default function ReportsPage() {
               <div className="text-sm text-text-secondary mt-1">{activeReport.description}</div>
               <div className="text-xs text-text-tertiary mt-2">
                 Range: {from} → {to}
+                {groupBy ? ` · Grouped by: ${activeReport.groupByOptions?.find((item) => item.value === groupBy)?.label ?? groupBy}` : ''}
                 {branchId ? ` · Branch: ${branches.find((branch) => branch.id === branchId)?.name ?? branchId}` : ''}
                 {contractorId ? ` · Contractor: ${contractors.find((contractor) => contractor.id === contractorId)?.companyName ?? contractorId}` : ''}
               </div>
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-2 rounded-lg border border-border-subtle bg-surface-2 px-3 py-2">
+                <Search className="w-4 h-4 text-text-tertiary" />
+                <input
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  placeholder="Search current report"
+                  className="bg-transparent text-sm text-text-primary outline-none placeholder:text-text-tertiary w-44"
+                />
+              </div>
               <button
                 type="button"
                 onClick={() => exportRows('csv')}
-                disabled={!sortedRows.length}
+                disabled={!filteredRows.length}
                 className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-2 border border-border-subtle text-text-secondary hover:text-text-primary disabled:opacity-40"
               >
                 <Download className="w-4 h-4" />
@@ -633,7 +747,7 @@ export default function ReportsPage() {
               <button
                 type="button"
                 onClick={() => exportRows('xlsx')}
-                disabled={!sortedRows.length}
+                disabled={!filteredRows.length}
                 className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-2 border border-border-subtle text-text-secondary hover:text-text-primary disabled:opacity-40"
               >
                 <FileSpreadsheet className="w-4 h-4" />
@@ -642,7 +756,7 @@ export default function ReportsPage() {
               <button
                 type="button"
                 onClick={() => exportRows('pdf')}
-                disabled={!sortedRows.length}
+                disabled={!filteredRows.length}
                 className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-brand-gradient text-white disabled:opacity-40"
               >
                 <FileText className="w-4 h-4" />
@@ -662,13 +776,46 @@ export default function ReportsPage() {
             </div>
           ) : null}
 
+          {columns.length ? (
+            <div className="p-5 border-b border-border-subtle bg-surface-2/30 space-y-3">
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
+                  <SlidersHorizontal className="w-4 h-4 text-brand-400" />
+                  View controls
+                </div>
+                <div className="text-xs text-text-tertiary">
+                  Showing {filteredRows.length} of {rows.length} rows
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {columns.map((column) => {
+                  const active = visibleColumns.includes(column);
+                  return (
+                    <button
+                      key={column}
+                      type="button"
+                      onClick={() => toggleColumn(column)}
+                      className={`px-3 py-1.5 rounded-lg text-xs border transition-colors ${
+                        active
+                          ? 'border-brand-500/40 bg-brand-500/10 text-brand-200'
+                          : 'border-border-subtle bg-surface-1 text-text-secondary'
+                      }`}
+                    >
+                      {humanize(column)}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+
           {error ? (
             <div className="p-5 text-sm text-red-300 bg-red-500/10 border-b border-red-500/20">{error}</div>
           ) : null}
 
           {loading ? (
             <div className="p-10 text-center text-text-tertiary">Loading report…</div>
-          ) : sortedRows.length === 0 ? (
+          ) : filteredRows.length === 0 ? (
             <div className="p-10 text-center text-text-tertiary">
               No rows found for the selected filters.
             </div>
@@ -677,7 +824,7 @@ export default function ReportsPage() {
               <table className="w-full text-sm">
                 <thead className="bg-surface-2/90 border-b border-border-subtle">
                   <tr>
-                    {columns.map((column) => (
+                    {tableColumns.map((column) => (
                       <th key={column} className="text-left px-4 py-3 whitespace-nowrap">
                         <button
                           type="button"
@@ -691,16 +838,29 @@ export default function ReportsPage() {
                         </button>
                       </th>
                     ))}
+                    {activeReport.detailEnabled ? <th className="text-left px-4 py-3 whitespace-nowrap">Details</th> : null}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border-subtle">
-                  {sortedRows.map((row, index) => (
+                  {filteredRows.map((row, index) => (
                     <tr key={index} className="hover:bg-surface-2/60">
-                      {columns.map((column) => (
+                      {tableColumns.map((column) => (
                         <td key={column} className="px-4 py-3 whitespace-nowrap text-text-primary">
                           {toDisplay(row[column])}
                         </td>
                       ))}
+                      {activeReport.detailEnabled ? (
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <button
+                            type="button"
+                            onClick={() => loadDetail(row)}
+                            className="inline-flex items-center gap-2 rounded-lg border border-border-subtle bg-surface-1 px-3 py-1.5 text-xs text-text-secondary hover:text-text-primary"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            View rows
+                          </button>
+                        </td>
+                      ) : null}
                     </tr>
                   ))}
                 </tbody>
@@ -708,6 +868,65 @@ export default function ReportsPage() {
             </div>
           )}
         </section>
+
+        {activeReport.detailEnabled ? (
+          <section className="rounded-2xl border border-border-subtle bg-surface-1 overflow-hidden">
+            <div className="p-5 border-b border-border-subtle">
+              <div className="text-lg font-semibold text-text-primary">Detailed records</div>
+              <div className="text-sm text-text-secondary mt-1">
+                Open any grouped row above to inspect the underlying entries before export.
+              </div>
+            </div>
+            {detailError ? (
+              <div className="p-5 text-sm text-red-300 bg-red-500/10 border-b border-red-500/20">{detailError}</div>
+            ) : null}
+            {detailLoading ? (
+              <div className="p-8 text-center text-text-tertiary">Loading detailed rows…</div>
+            ) : !detailData ? (
+              <div className="p-8 text-center text-text-tertiary">
+                Select a row above to inspect location-wise, user-wise, contractor-wise or date-wise raw records.
+              </div>
+            ) : detailData.rows.length === 0 ? (
+              <div className="p-8 text-center text-text-tertiary">No detailed rows found for {detailData.value}.</div>
+            ) : (
+              <div className="space-y-4 p-5">
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                  <div>
+                    <div className="text-sm font-medium text-text-primary">{detailData.value}</div>
+                    <div className="text-xs text-text-tertiary">{detailData.count} detailed rows available</div>
+                  </div>
+                  <div className="text-xs text-text-tertiary">
+                    Drilldown is capped for on-screen review so the page stays fast.
+                  </div>
+                </div>
+                <div className="overflow-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-surface-2/90 border-b border-border-subtle">
+                      <tr>
+                        {Object.keys(detailData.rows[0] ?? {}).map((column) => (
+                          <th key={column} className="text-left px-4 py-3 whitespace-nowrap text-text-secondary">
+                            {humanize(column)}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border-subtle">
+                      {detailData.rows.map((row, index) => (
+                        <tr key={index} className="hover:bg-surface-2/50">
+                          {Object.keys(detailData.rows[0] ?? {}).map((column) => (
+                            <td key={column} className="px-4 py-3 whitespace-nowrap text-text-primary">
+                              {toDisplay(row[column])}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </section>
+        ) : null}
       </div>
     </main>
   );

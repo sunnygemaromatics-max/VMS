@@ -25,7 +25,7 @@ interface PdfMeta {
   };
 }
 
-const BRAND_PRIMARY: [number, number, number] = [124, 58, 237]; // #7C3AED (brand-600)
+const BRAND_PRIMARY: [number, number, number] = [104, 171, 55]; // #68AB37 (brand-600)
 const BRAND_INK: [number, number, number] = [15, 23, 42]; // slate-900
 const MUTED: [number, number, number] = [100, 116, 139]; // slate-500
 const HAIRLINE: [number, number, number] = [203, 213, 225]; // slate-300

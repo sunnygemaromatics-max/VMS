@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Logo } from '@/components/logo';
 import { Mail, ArrowLeft, CheckCircle2 } from 'lucide-react';
 import { API_URL } from '@/lib/api';
+import { PASSWORD_RESET_ENABLED } from '@/lib/auth-features';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -12,6 +13,25 @@ export default function ForgotPasswordPage() {
   const [sent, setSent] = useState(false);
   const [resetToken, setResetToken] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  if (!PASSWORD_RESET_ENABLED) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-6 py-12 bg-surface-950 relative">
+        <div className="absolute top-6 left-6">
+          <Logo size={36} />
+        </div>
+        <div className="w-full max-w-sm text-center">
+          <h2 className="text-2xl font-semibold text-white mb-1">Password reset disabled</h2>
+          <p className="text-sm text-zinc-400 mb-6">
+            Ask your administrator to reset your password for this environment.
+          </p>
+          <Link href="/auth/login" className="text-brand-300 hover:text-brand-200 text-sm">
+            Back to sign in
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();

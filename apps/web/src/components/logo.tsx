@@ -13,26 +13,17 @@ interface Props {
 
 export function Logo({ size = 36, showWordmark = true, href = '/', className = '' }: Props) {
   const brand = getBrand();
+  const imageWidth = showWordmark ? Math.round(size * 4.4) : Math.round(size * 1.5);
   const inner = (
     <span className={`inline-flex items-center gap-2.5 ${className}`}>
       <Image
         src={brand.logoSrc}
-        alt={brand.tagline}
-        width={size}
+        alt={`${brand.tagline} logo`}
+        width={imageWidth}
         height={size}
         priority
-        className="rounded-lg"
+        className="h-auto w-auto object-contain"
       />
-      {showWordmark && (
-        <span className="flex flex-col leading-tight">
-          <span className="text-lg font-semibold text-white tracking-tight">
-            {brand.shortName}
-          </span>
-          <span className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">
-            {brand.tagline}
-          </span>
-        </span>
-      )}
     </span>
   );
 

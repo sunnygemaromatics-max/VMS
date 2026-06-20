@@ -35,8 +35,8 @@ const VMS_BRAND: BrandConfig = {
   description:
     'Enterprise Visitor & Workforce Management for Gem Aromatics Group.',
   ogTitle: 'VMS — Visitor Management System | Gem Aromatics',
-  logoSrc: '/logo.png',
-  faviconSrc: '/favicon.png',
+  logoSrc: '/gem-logo.webp',
+  faviconSrc: '/gem-logo.webp',
 };
 
 const AEGIS_BRAND: BrandConfig = {
@@ -47,8 +47,8 @@ const AEGIS_BRAND: BrandConfig = {
   description:
     'AI Security Monitoring & Visitor Intelligence Platform for Gem Aromatics Group.',
   ogTitle: 'AEGIS — AI Security & Visitor Intelligence',
-  logoSrc: '/logo.png',
-  faviconSrc: '/favicon.png',
+  logoSrc: '/gem-logo.webp',
+  faviconSrc: '/gem-logo.webp',
 };
 
 const BRANDS: Record<BrandCode, BrandConfig> = {

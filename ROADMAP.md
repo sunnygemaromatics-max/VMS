@@ -13,12 +13,7 @@ Honest status of features in [the original product prompt](README.md). Updated w
 - Realtime — Socket.io on the API
 - Android APK — built via EAS (see `apps/mobile/eas.json`)
 
-Demo logins (from `_seed.js`):
-
-| Role        | Email             | Password    |
-|-------------|-------------------|-------------|
-| Super admin | admin@vms.com     | admin123    |
-| HR manager  | host@demo.local   | password123 |
+Demo logins are provisioned directly in the deployment environment and should not be committed to source.
 
 ---
 
@@ -138,9 +133,9 @@ Demo logins (from `_seed.js`):
 - ❌ DTO validation with class-validator (deps installed; not used)
 
 ### Hostinger / custom domain
-- ❌ `vms.thestudioinfinito.com` CNAME not configured
-- ❌ "Personify Crafters" branding not in code
-- Note: hosting is currently Vercel + Render + Neon + Upstash + Expo (all $0/mo). Hostinger isn't required and would cost more than the current stack.
+- ✅ `vms.gemaromatics.com` and `aegis.gemaromatics.com` configured
+- ✅ Gem Aromatics branding applied in app UI
+- Note: hosting is currently Vercel + Render + Neon + Expo. Hostinger is used only for DNS.
 
 ---
 
@@ -148,7 +143,7 @@ Demo logins (from `_seed.js`):
 
 | Slice | Effort | Outcome |
 |---|---|---|
-| Custom domain + branding | 1–2 hr | `vms.thestudioinfinito.com` working, logo + name in UI |
+| Custom domain + branding | done | `vms.gemaromatics.com` working, logo + name in UI |
 | Re-enable RBAC + audit log | 1 day | Real role guards on writes; audit table populated |
 | Camera capture + photo upload | 2 days | Visitor photos stored in S3-compatible bucket (Cloudflare R2 free) |
 | Real face recognition (FaceAPI) | 1 week | Browser-side face matching; embeddings persisted |

@@ -7,11 +7,15 @@ import {
   HttpCode,
   UnauthorizedException,
   BadRequestException,
+  ForbiddenException,
   UseGuards,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+
+const isPublicAuthEnabled = (flag: 'ALLOW_PUBLIC_SIGNUP' | 'ALLOW_PUBLIC_PASSWORD_RESET') =>
+  process.env.NODE_ENV !== 'production' || process.env[flag] === 'true';
 
 @Controller('auth')
 export class AuthController {
@@ -30,6 +34,9 @@ export class AuthController {
   async register(
     @Body() body: { email: string; password: string; fullName: string; branchId: string },
   ) {
+    if (!isPublicAuthEnabled('ALLOW_PUBLIC_SIGNUP')) {
+      throw new ForbiddenException('Public sign-up is disabled');
+    }
     if (!body?.email || !body?.password || !body?.fullName || !body?.branchId) {
       throw new BadRequestException(
         'email, password, fullName and branchId are required',
@@ -118,6 +125,9 @@ export class AuthController {
   @Post('forgot-password')
   @HttpCode(200)
   async forgot(@Body() body: { email: string }) {
+    if (!isPublicAuthEnabled('ALLOW_PUBLIC_PASSWORD_RESET')) {
+      throw new ForbiddenException('Password reset is disabled');
+    }
     if (!body?.email) throw new BadRequestException('email required');
     return this.authService.createResetToken(body.email);
   }
@@ -125,6 +135,9 @@ export class AuthController {
   @Post('reset-password')
   @HttpCode(200)
   async reset(@Body() body: { token: string; newPassword: string }) {
+    if (!isPublicAuthEnabled('ALLOW_PUBLIC_PASSWORD_RESET')) {
+      throw new ForbiddenException('Password reset is disabled');
+    }
     if (!body?.token || !body?.newPassword) {
       throw new BadRequestException('token and newPassword required');
     }

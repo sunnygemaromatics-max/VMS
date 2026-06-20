@@ -40,29 +40,29 @@ module.exports = {
 
         // Brand — fixed across themes
         brand: {
-          50: '#f5f3ff',
-          100: '#ede9fe',
-          200: '#ddd6fe',
-          300: '#c4b5fd',
-          400: '#a78bfa',
-          500: '#8b5cf6',
-          600: '#7c3aed',
-          700: '#6d28d9',
-          800: '#5b21b6',
-          900: '#4c1d95',
-          950: '#2e1065',
+          50: '#f2faed',
+          100: '#e3f4d8',
+          200: '#c8eaae',
+          300: '#acd984',
+          400: '#8cca5d',
+          500: '#78bf45',
+          600: '#68ab37',
+          700: '#54872f',
+          800: '#456b2b',
+          900: '#395824',
+          950: '#1c3011',
         },
         accent: {
-          50: '#fff7ed',
-          100: '#ffedd5',
-          200: '#fed7aa',
-          300: '#fdba74',
-          400: '#fb923c',
-          500: '#f97316',
-          600: '#ea580c',
-          700: '#c2410c',
-          800: '#9a3412',
-          900: '#7c2d12',
+          50: '#eff6ff',
+          100: '#dbeafe',
+          200: '#bfdbfe',
+          300: '#93c5fd',
+          400: '#60a5fa',
+          500: '#3b82f6',
+          600: '#2f6fb7',
+          700: '#285f9d',
+          800: '#244f80',
+          900: '#23456b',
         },
         magenta: {
           400: '#e879f9',
@@ -81,17 +81,17 @@ module.exports = {
 
         // Data viz palette (charts/sparklines)
         'data-1': '#6366F1',
-        'data-2': '#06B6D4',
-        'data-3': '#8B5CF6',
+        'data-2': '#2F6FB7',
+        'data-3': '#78BF45',
         'data-4': '#EC4899',
         'data-5': '#14B8A6',
         'data-6': '#F59E0B',
       },
       backgroundImage: {
         'brand-gradient':
-          'linear-gradient(135deg, #7c3aed 0%, #c026d3 50%, #fb923c 100%)',
+          'linear-gradient(135deg, #78bf45 0%, #68ab37 45%, #2f6fb7 100%)',
         'brand-radial':
-          'radial-gradient(ellipse at top, rgba(124,58,237,0.14), transparent 55%), radial-gradient(ellipse at bottom right, rgba(251,146,60,0.06), transparent 60%)',
+          'radial-gradient(ellipse at top, rgba(120,191,69,0.16), transparent 55%), radial-gradient(ellipse at bottom right, rgba(47,111,183,0.10), transparent 60%)',
       },
       fontFamily: {
         sans: [
@@ -134,9 +134,9 @@ module.exports = {
         full: '9999px',
       },
       boxShadow: {
-        brand: '0 10px 40px -10px rgba(124, 58, 237, 0.45)',
+        brand: '0 10px 40px -10px rgba(47, 111, 183, 0.35)',
         'brand-glow':
-          '0 0 0 1px rgba(124,58,237,0.4), 0 8px 30px rgba(192,38,211,0.25)',
+          '0 0 0 1px rgba(104,171,55,0.35), 0 8px 30px rgba(47,111,183,0.22)',
         'op-1':
           '0 1px 2px rgba(0,0,0,0.4), 0 0 0 1px var(--border-subtle)',
         'op-2':

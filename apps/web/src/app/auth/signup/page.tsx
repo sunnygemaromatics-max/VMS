@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import Link from 'next/link';
 import { apiGet } from '@/lib/api';
+import { PUBLIC_SIGNUP_ENABLED } from '@/lib/auth-features';
 
 interface Branch { id: string; name: string; location: string }
 
@@ -19,6 +20,24 @@ export default function SignupPage() {
   const [isLoading, setIsLoading] = useState(false);
   const { signup } = useAuth();
   const router = useRouter();
+
+  if (!PUBLIC_SIGNUP_ENABLED) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-950 to-slate-900 p-4">
+        <div className="w-full max-w-md rounded-2xl border border-white/10 bg-white/5 p-8 backdrop-blur-xl shadow-2xl text-center">
+          <h1 className="text-3xl font-bold text-white mb-2">Account creation disabled</h1>
+          <p className="text-zinc-400">
+            New users must be created by an administrator in this environment.
+          </p>
+          <div className="mt-6">
+            <Link href="/auth/login" className="text-brand-300 hover:text-brand-200">
+              Back to sign in
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   useEffect(() => {
     apiGet<Branch[]>('/admin/branches')

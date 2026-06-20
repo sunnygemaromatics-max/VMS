@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { Logo } from '@/components/logo';
 import { Lock, Mail, ArrowRight, AlertCircle } from 'lucide-react';
 import { useI18n } from '@/lib/i18n';
+import { PASSWORD_RESET_ENABLED, PUBLIC_SIGNUP_ENABLED } from '@/lib/auth-features';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -78,13 +79,19 @@ export default function LoginPage() {
           <div className="mb-8">
             <h2 className="text-2xl font-semibold text-white">{t('auth.welcome')}</h2>
             <p className="text-sm text-zinc-400 mt-1">
-              {t('auth.noAccount')}{' '}
-              <Link
-                href="/auth/signup"
-                className="text-brand-400 hover:text-brand-300 font-medium"
-              >
-                {t('auth.signupCta')}
-              </Link>
+              {PUBLIC_SIGNUP_ENABLED ? (
+                <>
+                  {t('auth.noAccount')}{' '}
+                  <Link
+                    href="/auth/signup"
+                    className="text-brand-400 hover:text-brand-300 font-medium"
+                  >
+                    {t('auth.signupCta')}
+                  </Link>
+                </>
+              ) : (
+                'Contact your administrator for account access.'
+              )}
             </p>
           </div>
 
@@ -135,14 +142,16 @@ export default function LoginPage() {
               </div>
             )}
 
-            <div className="flex items-center justify-end">
-              <Link
-                href="/auth/forgot"
-                className="text-xs text-zinc-400 hover:text-brand-300"
-              >
-                Forgot password?
-              </Link>
-            </div>
+            {PASSWORD_RESET_ENABLED ? (
+              <div className="flex items-center justify-end">
+                <Link
+                  href="/auth/forgot"
+                  className="text-xs text-zinc-400 hover:text-brand-300"
+                >
+                  Forgot password?
+                </Link>
+              </div>
+            ) : null}
 
             <button
               type="submit"
@@ -158,14 +167,6 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <div className="mt-8 bg-white/[0.03] border border-white/[0.06] rounded-lg p-4 text-xs text-zinc-400">
-            <p className="font-semibold text-zinc-300 mb-2">Demo credentials</p>
-            <ul className="space-y-1 font-mono">
-              <li>admin@vms.com / admin123</li>
-              <li>host@demo.local / password123</li>
-              <li>admin@beta.local / beta123</li>
-            </ul>
-          </div>
         </div>
       </div>
     </div>

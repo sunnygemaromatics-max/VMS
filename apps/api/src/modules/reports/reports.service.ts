@@ -338,7 +338,10 @@ export class ReportsService {
     const { from, to } = this.resolveRange(f);
 
     const contractors = await this.prisma.contractor.findMany({
-      where: contractorScope(user),
+      where: {
+        ...contractorScope(user),
+        ...(f.contractorId ? { id: f.contractorId } : {}),
+      },
       select: {
         id: true,
         companyName: true,

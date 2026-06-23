@@ -31,6 +31,14 @@ import {
 import { DashboardHeader } from '@/components/dashboard-header';
 import { useAuth } from '@/lib/auth-context';
 import { apiGet, apiPost, apiPut } from '@/lib/api';
+import {
+  createStampedCapture,
+  formatCaptureDate,
+  getLocationText,
+  readFileAsDataUrl,
+  saveCaptureLocally,
+  snapshotVideo,
+} from '@/lib/capture';
 import { downloadCSV } from '@/lib/csv';
 import { downloadPDF } from '@/lib/pdf';
 import { downloadXLSX } from '@/lib/xlsx';
@@ -223,97 +231,6 @@ const EMPTY_VEHICLE = {
   rcDocumentData: '',
   notes: '',
 };
-
-async function readFileAsDataUrl(file: File) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ''));
-    reader.onerror = () => reject(new Error('Unable to read file'));
-    reader.readAsDataURL(file);
-  });
-}
-
-function formatStampDate(date = new Date()) {
-  return new Intl.DateTimeFormat('en-IN', {
-    dateStyle: 'medium',
-    timeStyle: 'medium',
-  }).format(date);
-}
-
-function makeCaptureFilename(label: string) {
-  const safe = label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-  return `${safe || 'capture'}-${stamp}.jpg`;
-}
-
-function downloadDataUrl(filename: string, dataUrl: string) {
-  const link = document.createElement('a');
-  link.href = dataUrl;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-}
-
-function saveCaptureLocally(label: string, dataUrl: string, locationText: string) {
-  const record = {
-    label,
-    dataUrl,
-    locationText,
-    capturedAt: new Date().toISOString(),
-  };
-  try {
-    const key = 'gem-material-gate-captures';
-    const existing = JSON.parse(localStorage.getItem(key) || '[]');
-    const next = [record, ...existing].slice(0, 40);
-    localStorage.setItem(key, JSON.stringify(next));
-  } catch {}
-  downloadDataUrl(makeCaptureFilename(label), dataUrl);
-}
-
-async function stampImageWithMeta(
-  source: string,
-  label: string,
-  locationText: string,
-  mimeType = 'image/jpeg',
-) {
-  const image = new Image();
-  image.src = source;
-  await new Promise((resolve, reject) => {
-    image.onload = resolve;
-    image.onerror = reject;
-  });
-
-  const canvas = document.createElement('canvas');
-  canvas.width = image.naturalWidth || image.width;
-  canvas.height = image.naturalHeight || image.height;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('Unable to stamp image');
-
-  ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-  const lines = [
-    `Gem Aromatics • ${label}`,
-    `Time: ${formatStampDate()}`,
-    `Geo: ${locationText}`,
-  ];
-
-  const fontSize = Math.max(18, Math.round(canvas.width / 38));
-  const lineHeight = Math.round(fontSize * 1.4);
-  const pad = Math.round(fontSize * 0.7);
-  ctx.font = `600 ${fontSize}px Arial`;
-  const textWidth = Math.max(...lines.map((line) => ctx.measureText(line).width));
-  const boxHeight = lineHeight * lines.length + pad * 1.2;
-  const y = canvas.height - boxHeight - pad;
-
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.68)';
-  ctx.fillRect(pad, y, textWidth + pad * 2, boxHeight);
-  ctx.fillStyle = '#ffffff';
-  lines.forEach((line, index) => {
-    ctx.fillText(line, pad * 1.5, y + pad + fontSize + index * lineHeight);
-  });
-
-  return canvas.toDataURL(mimeType, 0.92);
-}
 
 function statusTone(status: Status) {
   if (status === 'GATE_OUT' || status === 'STORE_ACCEPTED' || status === 'LOADED') return 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20';
@@ -1279,26 +1196,12 @@ function ImageField({ label, value, onChange, accept = 'image/*' }: { label: str
   }, []);
 
   async function loadGeo() {
-    if (!navigator.geolocation) {
-      setLocationText('Geolocation unsupported');
-      return;
-    }
     setGeoLoading(true);
-    await new Promise<void>((resolve) => {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const { latitude, longitude } = position.coords;
-          setLocationText(`${latitude.toFixed(5)}, ${longitude.toFixed(5)}`);
-          resolve();
-        },
-        () => {
-          setLocationText('Location permission denied');
-          resolve();
-        },
-        { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 },
-      );
-    });
-    setGeoLoading(false);
+    try {
+      setLocationText(await getLocationText());
+    } finally {
+      setGeoLoading(false);
+    }
   }
 
   async function openCamera() {
@@ -1336,30 +1239,48 @@ function ImageField({ label, value, onChange, accept = 'image/*' }: { label: str
   async function captureLivePhoto() {
     const video = videoRef.current;
     if (!video || !cameraReady) return;
-    const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth || 1280;
-    canvas.height = video.videoHeight || 720;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) {
-      setCaptureError('Unable to capture frame');
-      return;
+    try {
+      const stamped = await createStampedCapture(snapshotVideo(video), {
+        moduleName: 'Material Dispatch & Receipt',
+        label,
+        locationText,
+      });
+      onChange(stamped.dataUrl);
+      saveCaptureLocally({
+        moduleName: 'Material Dispatch & Receipt',
+        label,
+        filename: stamped.filename,
+        dataUrl: stamped.dataUrl,
+        locationText: stamped.locationText,
+        capturedAt: stamped.capturedAt.toISOString(),
+      });
+      closeCamera();
+    } catch (error) {
+      setCaptureError(error instanceof Error ? error.message : 'Unable to capture frame');
     }
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const raw = canvas.toDataURL('image/jpeg', 0.92);
-    const stamped = await stampImageWithMeta(raw, label, locationText);
-    onChange(stamped);
-    saveCaptureLocally(label, stamped, locationText);
-    closeCamera();
   }
 
   async function uploadFile(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
     const raw = await readFileAsDataUrl(file);
-    const stamped = raw.startsWith('data:image') ? await stampImageWithMeta(raw, label, locationText) : raw;
-    onChange(stamped);
-    if (stamped.startsWith('data:image')) {
-      saveCaptureLocally(label, stamped, locationText);
+    if (raw.startsWith('data:image')) {
+      const stamped = await createStampedCapture(raw, {
+        moduleName: 'Material Dispatch & Receipt',
+        label,
+        locationText,
+      });
+      onChange(stamped.dataUrl);
+      saveCaptureLocally({
+        moduleName: 'Material Dispatch & Receipt',
+        label,
+        filename: stamped.filename,
+        dataUrl: stamped.dataUrl,
+        locationText: stamped.locationText,
+        capturedAt: stamped.capturedAt.toISOString(),
+      });
+    } else {
+      onChange(raw);
     }
   }
 
@@ -1384,7 +1305,7 @@ function ImageField({ label, value, onChange, accept = 'image/*' }: { label: str
         </div>
 
         <div className="mt-3 rounded-xl border border-border-subtle bg-surface-1 px-3 py-2 text-xs text-text-tertiary">
-          Stamp: {formatStampDate()} • {locationText}
+          Stamp: {formatCaptureDate()} • {locationText}
         </div>
 
         {cameraOpen ? (

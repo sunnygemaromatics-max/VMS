@@ -608,7 +608,11 @@ export default function CheckInPage() {
               <h3 className="text-sm font-medium text-zinc-300 mb-3 flex items-center gap-2">
                 <Camera className="w-4 h-4 text-blue-400" /> Visitor photo (optional)
               </h3>
-              <WebcamCapture onCapture={setPhoto} />
+              <WebcamCapture
+                onCapture={setPhoto}
+                moduleName="Visitor Check-In"
+                label={type === 'WORKER' ? 'Worker Registration Photo' : 'Visitor Registration Photo'}
+              />
             </div>
 
             {workerResult ? (

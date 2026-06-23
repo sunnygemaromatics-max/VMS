@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Camera, ScanFace, CheckCircle2, X } from 'lucide-react';
 import { apiPost } from '@/lib/api';
+import { createStampedCapture, saveCaptureLocally, snapshotVideo } from '@/lib/capture';
 import { describeFace, loadFaceApi } from '@/lib/face-api-loader';
 
 interface Props {
@@ -102,6 +103,18 @@ export function FaceEnrollButton({ kind, id, label, onEnrolled, autoStart, onClo
     if (!videoRef.current) return;
     setState({ kind: 'capturing' });
     try {
+      const stamped = await createStampedCapture(snapshotVideo(videoRef.current), {
+        moduleName: kind === 'visitor' ? 'Visitor Face Enrollment' : 'Worker Face Enrollment',
+        label: kind === 'visitor' ? 'Visitor Face Capture' : 'Worker Face Capture',
+      });
+      saveCaptureLocally({
+        moduleName: kind === 'visitor' ? 'Visitor Face Enrollment' : 'Worker Face Enrollment',
+        label: kind === 'visitor' ? 'Visitor Face Capture' : 'Worker Face Capture',
+        filename: stamped.filename,
+        dataUrl: stamped.dataUrl,
+        locationText: stamped.locationText,
+        capturedAt: stamped.capturedAt.toISOString(),
+      });
       const embedding = await describeFace(videoRef.current);
       if (!embedding) {
         setState({ kind: 'error', message: 'No face detected — try again.' });

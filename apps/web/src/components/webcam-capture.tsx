@@ -1,23 +1,50 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Camera, RefreshCw, X } from 'lucide-react';
+import { Camera, Crosshair, Download, RefreshCw, X } from 'lucide-react';
+import {
+  createStampedCapture,
+  formatCaptureDate,
+  getLocationText,
+  readFileAsDataUrl,
+  saveCaptureLocally,
+  snapshotVideo,
+} from '@/lib/capture';
 
 interface Props {
   onCapture: (dataUrl: string) => void;
   initialDataUrl?: string | null;
+  moduleName?: string;
+  label?: string;
 }
 
-export function WebcamCapture({ onCapture, initialDataUrl }: Props) {
+export function WebcamCapture({
+  onCapture,
+  initialDataUrl,
+  moduleName = 'Visitor Check-In',
+  label = 'Visitor Photo',
+}: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [active, setActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [photo, setPhoto] = useState<string | null>(initialDataUrl ?? null);
+  const [locationText, setLocationText] = useState('Location unavailable');
+  const [geoLoading, setGeoLoading] = useState(false);
+
+  async function refreshGeo() {
+    setGeoLoading(true);
+    try {
+      setLocationText(await getLocationText());
+    } finally {
+      setGeoLoading(false);
+    }
+  }
 
   async function startCamera() {
     setError(null);
     try {
+      await refreshGeo();
       // Try preferred constraints, fall back if device can't honour them
       let stream: MediaStream;
       try {
@@ -60,27 +87,63 @@ export function WebcamCapture({ onCapture, initialDataUrl }: Props) {
 
   useEffect(() => () => stopCamera(), []);
 
-  function snapshot() {
+  async function snapshot() {
     const video = videoRef.current;
     if (!video) return;
-    const w = video.videoWidth || 480;
-    const h = video.videoHeight || 480;
-    const canvas = document.createElement('canvas');
-    canvas.width = w;
-    canvas.height = h;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.drawImage(video, 0, 0, w, h);
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-    setPhoto(dataUrl);
-    onCapture(dataUrl);
-    stopCamera();
+    try {
+      const raw = snapshotVideo(video, 'image/jpeg', 0.9);
+      const stamped = await createStampedCapture(raw, {
+        moduleName,
+        label,
+        locationText,
+      });
+      setPhoto(stamped.dataUrl);
+      onCapture(stamped.dataUrl);
+      saveCaptureLocally({
+        moduleName,
+        label,
+        filename: stamped.filename,
+        dataUrl: stamped.dataUrl,
+        locationText: stamped.locationText,
+        capturedAt: stamped.capturedAt.toISOString(),
+      });
+      stopCamera();
+    } catch (e: any) {
+      setError(e?.message || 'Could not capture photo');
+    }
   }
 
   function retake() {
     setPhoto(null);
     onCapture('');
     startCamera();
+  }
+
+  async function handleUpload(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      const raw = await readFileAsDataUrl(file);
+      const stamped = await createStampedCapture(raw, {
+        moduleName,
+        label,
+        locationText,
+      });
+      setPhoto(stamped.dataUrl);
+      onCapture(stamped.dataUrl);
+      saveCaptureLocally({
+        moduleName,
+        label,
+        filename: stamped.filename,
+        dataUrl: stamped.dataUrl,
+        locationText: stamped.locationText,
+        capturedAt: stamped.capturedAt.toISOString(),
+      });
+    } catch (e: any) {
+      setError(e?.message || 'Could not use uploaded image');
+    } finally {
+      event.target.value = '';
+    }
   }
 
   return (
@@ -112,15 +175,32 @@ export function WebcamCapture({ onCapture, initialDataUrl }: Props) {
         </div>
       )}
 
+      <div className="px-4 py-2 text-xs text-zinc-400 border-t border-white/10 bg-slate-950/30">
+        Stamp: {formatCaptureDate()} • {locationText}
+      </div>
+
       <div className="flex gap-2 p-3 border-t border-white/10 bg-slate-950/40">
         {!active && !photo && (
-          <button
-            type="button"
-            onClick={startCamera}
-            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium"
-          >
-            <Camera className="w-4 h-4" /> Start camera
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={startCamera}
+              className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium"
+            >
+              <Camera className="w-4 h-4" /> Start camera
+            </button>
+            <label className="flex-1 flex cursor-pointer items-center justify-center gap-2 px-3 py-2 rounded bg-white/10 hover:bg-white/20 text-white text-sm">
+              <Download className="w-4 h-4" /> Upload image
+              <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleUpload} />
+            </label>
+            <button
+              type="button"
+              onClick={refreshGeo}
+              className="px-3 py-2 rounded bg-white/10 hover:bg-white/20 text-white text-sm"
+            >
+              <Crosshair className="w-4 h-4" />
+            </button>
+          </>
         )}
         {active && (
           <>
@@ -141,13 +221,23 @@ export function WebcamCapture({ onCapture, initialDataUrl }: Props) {
           </>
         )}
         {photo && (
-          <button
-            type="button"
-            onClick={retake}
-            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded bg-white/10 hover:bg-white/20 text-white text-sm"
-          >
-            <RefreshCw className="w-4 h-4" /> Retake
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={retake}
+              className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded bg-white/10 hover:bg-white/20 text-white text-sm"
+            >
+              <RefreshCw className="w-4 h-4" /> Retake
+            </button>
+            <button
+              type="button"
+              onClick={refreshGeo}
+              disabled={geoLoading}
+              className="px-3 py-2 rounded bg-white/10 hover:bg-white/20 text-white text-sm disabled:opacity-60"
+            >
+              <Crosshair className="w-4 h-4" />
+            </button>
+          </>
         )}
       </div>
     </div>

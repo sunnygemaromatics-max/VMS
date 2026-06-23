@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { QRCodeSVG } from 'qrcode.react';
 import {
@@ -12,6 +12,7 @@ import {
   CarFront,
   CheckCircle2,
   ClipboardList,
+  Crosshair,
   Download,
   FileSpreadsheet,
   FileText,
@@ -22,6 +23,8 @@ import {
   Save,
   Search,
   ShieldAlert,
+  Video,
+  VideoOff,
   Truck,
   UserSquare2,
 } from 'lucide-react';
@@ -228,6 +231,88 @@ async function readFileAsDataUrl(file: File) {
     reader.onerror = () => reject(new Error('Unable to read file'));
     reader.readAsDataURL(file);
   });
+}
+
+function formatStampDate(date = new Date()) {
+  return new Intl.DateTimeFormat('en-IN', {
+    dateStyle: 'medium',
+    timeStyle: 'medium',
+  }).format(date);
+}
+
+function makeCaptureFilename(label: string) {
+  const safe = label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  return `${safe || 'capture'}-${stamp}.jpg`;
+}
+
+function downloadDataUrl(filename: string, dataUrl: string) {
+  const link = document.createElement('a');
+  link.href = dataUrl;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+function saveCaptureLocally(label: string, dataUrl: string, locationText: string) {
+  const record = {
+    label,
+    dataUrl,
+    locationText,
+    capturedAt: new Date().toISOString(),
+  };
+  try {
+    const key = 'gem-material-gate-captures';
+    const existing = JSON.parse(localStorage.getItem(key) || '[]');
+    const next = [record, ...existing].slice(0, 40);
+    localStorage.setItem(key, JSON.stringify(next));
+  } catch {}
+  downloadDataUrl(makeCaptureFilename(label), dataUrl);
+}
+
+async function stampImageWithMeta(
+  source: string,
+  label: string,
+  locationText: string,
+  mimeType = 'image/jpeg',
+) {
+  const image = new Image();
+  image.src = source;
+  await new Promise((resolve, reject) => {
+    image.onload = resolve;
+    image.onerror = reject;
+  });
+
+  const canvas = document.createElement('canvas');
+  canvas.width = image.naturalWidth || image.width;
+  canvas.height = image.naturalHeight || image.height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Unable to stamp image');
+
+  ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+  const lines = [
+    `Gem Aromatics • ${label}`,
+    `Time: ${formatStampDate()}`,
+    `Geo: ${locationText}`,
+  ];
+
+  const fontSize = Math.max(18, Math.round(canvas.width / 38));
+  const lineHeight = Math.round(fontSize * 1.4);
+  const pad = Math.round(fontSize * 0.7);
+  ctx.font = `600 ${fontSize}px Arial`;
+  const textWidth = Math.max(...lines.map((line) => ctx.measureText(line).width));
+  const boxHeight = lineHeight * lines.length + pad * 1.2;
+  const y = canvas.height - boxHeight - pad;
+
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.68)';
+  ctx.fillRect(pad, y, textWidth + pad * 2, boxHeight);
+  ctx.fillStyle = '#ffffff';
+  lines.forEach((line, index) => {
+    ctx.fillText(line, pad * 1.5, y + pad + fontSize + index * lineHeight);
+  });
+
+  return canvas.toDataURL(mimeType, 0.92);
 }
 
 function statusTone(status: Status) {
@@ -1179,25 +1264,147 @@ function ToggleField({ label, checked, onChange }: { label: string; checked: boo
 }
 
 function ImageField({ label, value, onChange, accept = 'image/*' }: { label: string; value: string; onChange: (value: string) => void; accept?: string }) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraReady, setCameraReady] = useState(false);
+  const [captureError, setCaptureError] = useState<string | null>(null);
+  const [locationText, setLocationText] = useState('Location unavailable');
+  const [geoLoading, setGeoLoading] = useState(false);
+
+  useEffect(() => {
+    return () => {
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+    };
+  }, []);
+
+  async function loadGeo() {
+    if (!navigator.geolocation) {
+      setLocationText('Geolocation unsupported');
+      return;
+    }
+    setGeoLoading(true);
+    await new Promise<void>((resolve) => {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          setLocationText(`${latitude.toFixed(5)}, ${longitude.toFixed(5)}`);
+          resolve();
+        },
+        () => {
+          setLocationText('Location permission denied');
+          resolve();
+        },
+        { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 },
+      );
+    });
+    setGeoLoading(false);
+  }
+
+  async function openCamera() {
+    setCaptureError(null);
+    try {
+      await loadGeo();
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+        audio: false,
+      });
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = stream;
+      setCameraOpen(true);
+      setCameraReady(false);
+      window.setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.play().catch(() => {});
+        }
+      }, 0);
+    } catch (error) {
+      setCaptureError(error instanceof Error ? error.message : 'Unable to open camera');
+      setCameraOpen(false);
+    }
+  }
+
+  function closeCamera() {
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    if (videoRef.current) videoRef.current.srcObject = null;
+    setCameraOpen(false);
+    setCameraReady(false);
+  }
+
+  async function captureLivePhoto() {
+    const video = videoRef.current;
+    if (!video || !cameraReady) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth || 1280;
+    canvas.height = video.videoHeight || 720;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      setCaptureError('Unable to capture frame');
+      return;
+    }
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const raw = canvas.toDataURL('image/jpeg', 0.92);
+    const stamped = await stampImageWithMeta(raw, label, locationText);
+    onChange(stamped);
+    saveCaptureLocally(label, stamped, locationText);
+    closeCamera();
+  }
+
+  async function uploadFile(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const raw = await readFileAsDataUrl(file);
+    const stamped = raw.startsWith('data:image') ? await stampImageWithMeta(raw, label, locationText) : raw;
+    onChange(stamped);
+    if (stamped.startsWith('data:image')) {
+      saveCaptureLocally(label, stamped, locationText);
+    }
+  }
+
   return (
     <label className="flex flex-col gap-1.5">
       <span className="text-xs text-text-tertiary">{label}</span>
       <div className="rounded-2xl border border-dashed border-border-strong bg-surface-2 p-3">
-        <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border-subtle bg-surface-1 px-3 py-2 text-sm text-text-secondary hover:bg-surface-3 hover:text-text-primary">
-          <Camera className="h-4 w-4" />
-          Upload / capture
-          <input
-            type="file"
-            accept={accept}
-            capture="environment"
-            className="hidden"
-            onChange={async (event) => {
-              const file = event.target.files?.[0];
-              if (!file) return;
-              onChange(await readFileAsDataUrl(file));
-            }}
-          />
-        </label>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={openCamera} className="inline-flex items-center gap-2 rounded-xl border border-border-subtle bg-surface-1 px-3 py-2 text-sm text-text-secondary hover:bg-surface-3 hover:text-text-primary">
+            <Video className="h-4 w-4" />
+            Live camera
+          </button>
+          <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border-subtle bg-surface-1 px-3 py-2 text-sm text-text-secondary hover:bg-surface-3 hover:text-text-primary">
+            <Camera className="h-4 w-4" />
+            Upload file
+            <input type="file" accept={accept} capture="environment" className="hidden" onChange={uploadFile} />
+          </label>
+          <button type="button" onClick={loadGeo} className="inline-flex items-center gap-2 rounded-xl border border-border-subtle bg-surface-1 px-3 py-2 text-sm text-text-secondary hover:bg-surface-3 hover:text-text-primary">
+            <Crosshair className="h-4 w-4" />
+            {geoLoading ? 'Fetching geo…' : 'Refresh geo'}
+          </button>
+        </div>
+
+        <div className="mt-3 rounded-xl border border-border-subtle bg-surface-1 px-3 py-2 text-xs text-text-tertiary">
+          Stamp: {formatStampDate()} • {locationText}
+        </div>
+
+        {cameraOpen ? (
+          <div className="mt-3 rounded-2xl border border-border-subtle bg-black/40 p-3">
+            <video ref={videoRef} muted playsInline onLoadedMetadata={() => setCameraReady(true)} className="h-48 w-full rounded-xl object-cover sm:h-64" />
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button type="button" onClick={captureLivePhoto} disabled={!cameraReady} className="inline-flex items-center gap-2 rounded-xl bg-brand-gradient px-4 py-2 text-sm font-medium text-white disabled:opacity-60">
+                <Camera className="h-4 w-4" />
+                Capture stamped photo
+              </button>
+              <button type="button" onClick={closeCamera} className="inline-flex items-center gap-2 rounded-xl border border-border-subtle bg-surface-1 px-4 py-2 text-sm text-text-secondary hover:bg-surface-3 hover:text-text-primary">
+                <VideoOff className="h-4 w-4" />
+                Close camera
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {captureError ? <div className="mt-3 text-xs text-red-300">{captureError}</div> : null}
+
         {value ? (
           value.startsWith('data:image') ? (
             <img src={value} alt={label} className="mt-3 h-36 w-full rounded-xl object-cover" />
@@ -1205,7 +1412,9 @@ function ImageField({ label, value, onChange, accept = 'image/*' }: { label: str
             <div className="mt-3 text-xs text-text-tertiary">Document attached</div>
           )
         ) : (
-          <div className="mt-3 text-xs text-text-tertiary">Supports camera capture now. Ready for future ANPR / 360 integrations.</div>
+          <div className="mt-3 text-xs text-text-tertiary">
+            Live capture adds date, time and geo stamp on the image, stores it in the form, and downloads a local copy automatically.
+          </div>
         )}
       </div>
     </label>

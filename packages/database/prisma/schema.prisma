@@ -45,6 +45,9 @@ model Organization {
   name        String    @db.VarChar(255)
   branches    Branch[]
   contractors Contractor[]
+  drivers     DriverMaster[]
+  vehicles    VehicleMaster[]
+  movements   MaterialMovement[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -62,6 +65,7 @@ model Branch {
   attendance     Attendance[]
   shifts         Shift[]
   parkingSlots   ParkingSlot[]
+  materialMovements MaterialMovement[]
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -287,6 +291,36 @@ enum PassDirection {
   OUT
 }
 
+enum MaterialEntryType {
+  RECEIPT
+  DISPATCH
+}
+
+enum MaterialGateStatus {
+  PENDING
+  SECURITY_IN
+  WEIGHMENT
+  STORE_ACCEPTED
+  REJECTED
+  GATE_OUT
+  SECURITY_VERIFIED
+  LOADED
+}
+
+enum MasterListStatus {
+  NORMAL
+  WHITELISTED
+  BLACKLISTED
+}
+
+enum VehicleMasterType {
+  TRUCK
+  TANKER
+  TEMPO
+  CONTAINER
+  OTHER
+}
+
 model MaterialGatePass {
   id            String        @id @default(uuid())
   visitId       String
@@ -302,6 +336,146 @@ model MaterialGatePass {
   @@index([visitId])
   @@index([direction])
   @@index([createdAt])
+}
+
+model DriverMaster {
+  id                   String           @id @default(uuid())
+  organizationId       String
+  fullName             String           @db.VarChar(255)
+  mobile               String           @db.VarChar(20)
+  licenseNumber        String           @db.VarChar(100)
+  licenseExpiry        DateTime?
+  address              String?          @db.VarChar(1000)
+  photoData            String?          @db.Text
+  idProofData          String?          @db.Text
+  policeVerification   Boolean          @default(false)
+  listStatus           MasterListStatus @default(NORMAL)
+  transporterName      String?          @db.VarChar(255)
+  notes                String?          @db.VarChar(1000)
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+
+  organization         Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  movements            MaterialMovement[]
+
+  @@unique([organizationId, mobile])
+  @@unique([organizationId, licenseNumber])
+  @@index([organizationId])
+  @@index([fullName])
+  @@index([listStatus])
+}
+
+model VehicleMaster {
+  id                String            @id @default(uuid())
+  organizationId    String
+  vehicleNumber     String            @db.VarChar(50)
+  ownerName         String?           @db.VarChar(255)
+  transporterName   String?           @db.VarChar(255)
+  vehicleType       VehicleMasterType @default(TRUCK)
+  rcDocumentData    String?           @db.Text
+  insuranceExpiry   DateTime?
+  pucExpiry         DateTime?
+  fitnessExpiry     DateTime?
+  listStatus        MasterListStatus  @default(NORMAL)
+  notes             String?           @db.VarChar(1000)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  organization      Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  movements         MaterialMovement[]
+
+  @@unique([organizationId, vehicleNumber])
+  @@index([organizationId])
+  @@index([vehicleNumber])
+  @@index([listStatus])
+}
+
+model MaterialMovement {
+  id                     String             @id @default(uuid())
+  organizationId         String
+  branchId               String
+  entryType              MaterialEntryType
+  referenceNo            String             @unique @db.VarChar(40)
+  status                 MaterialGateStatus @default(PENDING)
+  enteredAt              DateTime           @default(now())
+  gateInAt               DateTime?
+  gateOutAt              DateTime?
+  vehicleMasterId        String?
+  driverMasterId         String?
+  vehicleNumber          String             @db.VarChar(50)
+  anprDetectedNumber     String?            @db.VarChar(50)
+  anprCorrectedNumber    String?            @db.VarChar(50)
+  anprConfidence         Float?
+  anprImageData          String?            @db.Text
+  driverName             String             @db.VarChar(255)
+  driverMobile           String             @db.VarChar(20)
+  driverLicenseNumber    String             @db.VarChar(100)
+  driverPhotoData        String?            @db.Text
+  transporterName        String?            @db.VarChar(255)
+  supplierName           String?            @db.VarChar(255)
+  customerName           String?            @db.VarChar(255)
+  poNumber               String?            @db.VarChar(100)
+  invoiceNumber          String?            @db.VarChar(100)
+  deliveryChallanNo      String?            @db.VarChar(100)
+  lrNumber               String?            @db.VarChar(100)
+  materialName           String             @db.VarChar(255)
+  materialCategory       String?            @db.VarChar(100)
+  quantity               Float              @default(0)
+  unit                   String             @db.VarChar(30)
+  plantLocation          String?            @db.VarChar(255)
+  destination            String?            @db.VarChar(255)
+  approvedBy             String?            @db.VarChar(255)
+  securityRemarks        String?            @db.VarChar(1000)
+  storeRemarks           String?            @db.VarChar(1000)
+  dispatchRemarks        String?            @db.VarChar(1000)
+  beforePhotoData        String?            @db.Text
+  beforePhotoTakenAt     DateTime?
+  beforePhotoTakenBy     String?            @db.VarChar(255)
+  afterPhotoData         String?            @db.Text
+  afterPhotoTakenAt      DateTime?
+  afterPhotoTakenBy      String?            @db.VarChar(255)
+  manualOverrideReason   String?            @db.VarChar(1000)
+  qrToken                String             @unique @db.VarChar(128)
+  createdById            String?            @db.VarChar(100)
+  createdByName          String?            @db.VarChar(255)
+  updatedById            String?            @db.VarChar(100)
+  updatedByName          String?            @db.VarChar(255)
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+
+  organization           Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  branch                 Branch             @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  vehicleMaster          VehicleMaster?     @relation(fields: [vehicleMasterId], references: [id], onDelete: SetNull)
+  driverMaster           DriverMaster?      @relation(fields: [driverMasterId], references: [id], onDelete: SetNull)
+  events                 MaterialMovementEvent[]
+
+  @@index([organizationId, createdAt])
+  @@index([branchId, status])
+  @@index([vehicleNumber])
+  @@index([driverMobile])
+  @@index([entryType])
+  @@index([supplierName])
+  @@index([customerName])
+  @@index([materialName])
+}
+
+model MaterialMovementEvent {
+  id             String   @id @default(uuid())
+  movementId     String
+  action         String   @db.VarChar(80)
+  fieldName      String?  @db.VarChar(100)
+  oldValue       String?  @db.Text
+  newValue       String?  @db.Text
+  notes          String?  @db.VarChar(1000)
+  actorId        String?  @db.VarChar(100)
+  actorEmail     String?  @db.VarChar(255)
+  actorRole      String?  @db.VarChar(50)
+  createdAt      DateTime @default(now())
+
+  movement       MaterialMovement @relation(fields: [movementId], references: [id], onDelete: Cascade)
+
+  @@index([movementId, createdAt])
+  @@index([action])
 }
 
 model Contractor {
@@ -909,3 +1083,6 @@ model VisitorDocument {
   @@index([status])
   @@index([signToken])
 }
+
+
+
